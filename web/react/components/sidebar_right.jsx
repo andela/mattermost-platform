@@ -33,7 +33,9 @@ export default class SidebarRight extends React.Component {
     componentDidUpdate() {
         if (this.plScrolledToBottom) {
             var postHolder = $('.post-list-holder-by-time').not('.inactive');
-            postHolder.scrollTop(postHolder[0].scrollHeight);
+            if (postHolder.length !== 0) {
+                postHolder.scrollTop(postHolder[0].scrollHeight);
+            }
         } else {
             $('.top-visible-post')[0].scrollIntoView();
         }
@@ -54,7 +56,7 @@ export default class SidebarRight extends React.Component {
     render() {
         var postHolder = $('.post-list-holder-by-time').not('.inactive');
         const position = postHolder.scrollTop() + postHolder.height() + 14;
-        const bottom = postHolder[0].scrollHeight;
+        const bottom = postHolder.length > 0 ? postHolder[0].scrollHeight : 0;
         this.plScrolledToBottom = position >= bottom;
 
         if (!(this.state.search_visible || this.state.post_right_visible)) {

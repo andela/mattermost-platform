@@ -2,7 +2,13 @@
 // See License.txt for license information.
 
 const PostList = require('./post_list.jsx');
+const TutorialIntroScreens = require('./tutorial/tutorial_intro_screens.jsx');
+const UserStore = require('../stores/user_store.jsx');
 const ChannelStore = require('../stores/channel_store.jsx');
+const PreferenceStore = require('../stores/preference_store.jsx');
+
+const Constants = require('../utils/constants.jsx');
+const Preferences = Constants.Preferences;
 
 export default class PostListContainer extends React.Component {
     constructor() {
@@ -10,54 +16,80 @@ export default class PostListContainer extends React.Component {
 
         this.onChange = this.onChange.bind(this);
         this.onLeave = this.onLeave.bind(this);
+        this.onPreferenceChange = this.onPreferenceChange.bind(this);
 
-        let currentChannelId = ChannelStore.getCurrentId();
+        const currentChannelId = ChannelStore.getCurrentId();
+        let state = {};
         if (currentChannelId) {
-            this.state = {currentChannelId: currentChannelId, postLists: [currentChannelId]};
+            state = {currentChannelId, postLists: [currentChannelId]};
         } else {
-            this.state = {currentChannelId: null, postLists: []};
+            state = {currentChannelId: null, postLists: []};
         }
+
+        const isTutorialComplete = PreferenceStore.getPreference(Preferences.TUTORIAL_INTRO_COMPLETE, UserStore.getCurrentId(), 'false');
+        state.isTutorialComplete = isTutorialComplete.value === 'true';
+
+        this.state = state;
     }
     componentDidMount() {
         ChannelStore.addChangeListener(this.onChange);
         ChannelStore.addLeaveListener(this.onLeave);
+        PreferenceStore.addChangeListener(this.onPreferenceChange);
+    }
+    componentWillUnmount() {
+        ChannelStore.removeChangeListener(this.onChange);
+        ChannelStore.removeLeaveListener(this.onLeave);
+        PreferenceStore.removeChangeListener(this.onPreferenceChange);
     }
     onChange() {
-        let channelId = ChannelStore.getCurrentId();
-        if (channelId === this.state.currentChannelId) {
+        const currentChannelId = ChannelStore.getCurrentId();
+        if (currentChannelId === this.state.currentChannelId) {
             return;
         }
 
-        let postLists = this.state.postLists;
-        if (postLists.indexOf(channelId) === -1) {
-            postLists.push(channelId);
+        const postLists = this.state.postLists;
+        if (postLists.indexOf(currentChannelId) === -1) {
+            postLists.push(currentChannelId);
         }
-        this.setState({currentChannelId: channelId, postLists: postLists});
+        this.setState({currentChannelId, postLists});
     }
     onLeave(id) {
-        let postLists = this.state.postLists;
-        var index = postLists.indexOf(id);
+        const postLists = this.state.postLists;
+        const index = postLists.indexOf(id);
         if (index !== -1) {
             postLists.splice(index, 1);
         }
     }
+    onPreferenceChange() {
+        const isTutorialComplete = PreferenceStore.getPreference(Preferences.TUTORIAL_INTRO_COMPLETE, UserStore.getCurrentId(), 'false');
+        this.setState({isTutorialComplete: isTutorialComplete.value === 'true'});
+    }
     render() {
-        let postLists = this.state.postLists;
-        let channelId = this.state.currentChannelId;
+        const postLists = this.state.postLists;
+        const channelId = this.state.currentChannelId;
 
-        let postListCtls = [];
-        for (let i = 0; i <= this.state.postLists.length - 1; i++) {
-            postListCtls.push(
-                <PostList
-                    key={'postlistkey' + i}
-                    channelId={postLists[i]}
-                    isActive={postLists[i] === channelId}
-                />
-            );
+        const postListCtls = [];
+        let tutorialIntro = null;
+
+        if (this.state.isTutorialComplete) {
+            for (let i = 0; i <= this.state.postLists.length - 1; i++) {
+                postListCtls.push(
+                    <PostList
+                        key={'postlistkey' + i}
+                        channelId={postLists[i]}
+                        isActive={postLists[i] === channelId}
+                    />
+                );
+            }
+        } else {
+            tutorialIntro = <TutorialIntroScreens/>;
         }
 
         return (
-            <div>{postListCtls}</div>
+            <div>
+                {postListCtls}
+                {tutorialIntro}
+            </div>
         );
     }
 }
