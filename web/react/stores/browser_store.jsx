@@ -24,11 +24,17 @@ class BrowserStoreClass {
         this.setLastServerVersion = this.setLastServerVersion.bind(this);
         this.clear = this.clear.bind(this);
         this.clearAll = this.clearAll.bind(this);
+        this.checkedLocalStorageSupported = '';
+        this.signalLogout = this.signalLogout.bind(this);
 
         var currentVersion = sessionStorage.getItem('storage_version');
         if (currentVersion !== global.window.mm_config.Version) {
             sessionStorage.clear();
-            sessionStorage.setItem('storage_version', global.window.mm_config.Version);
+            try {
+                sessionStorage.setItem('storage_version', global.window.mm_config.Version);
+            } catch (e) {
+                // Do nothing
+            }
         }
     }
 
@@ -66,7 +72,7 @@ class BrowserStoreClass {
             console.log('An error occurred while setting local storage, clearing all props'); //eslint-disable-line no-console
             localStorage.clear();
             sessionStorage.clear();
-            window.location.href = window.location.href;
+            window.location.reload(true);
         }
     }
 
@@ -103,6 +109,13 @@ class BrowserStoreClass {
 
     setLastServerVersion(version) {
         sessionStorage.setItem('last_server_version', version);
+    }
+
+    signalLogout() {
+        if (this.isLocalStorageSupported()) {
+            localStorage.setItem('__logout__', 'yes');
+            localStorage.removeItem('__logout__');
+        }
     }
 
     /**
@@ -147,20 +160,26 @@ class BrowserStoreClass {
     }
 
     isLocalStorageSupported() {
-        try {
-            sessionStorage.setItem('testSession', '1');
-            sessionStorage.removeItem('testSession');
-
-            localStorage.setItem('testLocal', '1');
-            if (localStorage.getItem('testLocal') !== '1') {
-                return false;
-            }
-            localStorage.removeItem('testLocal', '1');
-
-            return true;
-        } catch (e) {
-            return false;
+        if (this.checkedLocalStorageSupported !== '') {
+            return this.checkedLocalStorageSupported;
         }
+
+        try {
+            sessionStorage.setItem('__testSession__', '1');
+            sessionStorage.removeItem('__testSession__');
+
+            localStorage.setItem('__testLocal__', '1');
+            if (localStorage.getItem('__testLocal__') !== '1') {
+                this.checkedLocalStorageSupported = false;
+            }
+            localStorage.removeItem('__testLocal__', '1');
+
+            this.checkedLocalStorageSupported = true;
+        } catch (e) {
+            this.checkedLocalStorageSupported = false;
+        }
+
+        return this.checkedLocalStorageSupported;
     }
 }
 

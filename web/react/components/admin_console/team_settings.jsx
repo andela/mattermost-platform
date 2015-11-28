@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var Client = require('../../utils/client.jsx');
-var AsyncClient = require('../../utils/async_client.jsx');
+import * as Client from '../../utils/client.jsx';
+import * as AsyncClient from '../../utils/async_client.jsx';
 
 export default class TeamSettings extends React.Component {
     constructor(props) {
@@ -32,6 +32,7 @@ export default class TeamSettings extends React.Component {
         config.TeamSettings.EnableTeamCreation = ReactDOM.findDOMNode(this.refs.EnableTeamCreation).checked;
         config.TeamSettings.EnableUserCreation = ReactDOM.findDOMNode(this.refs.EnableUserCreation).checked;
         config.TeamSettings.RestrictTeamNames = ReactDOM.findDOMNode(this.refs.RestrictTeamNames).checked;
+        config.TeamSettings.EnableTeamListing = ReactDOM.findDOMNode(this.refs.EnableTeamListing).checked;
 
         var MaxUsersPerTeam = 50;
         if (!isNaN(parseInt(ReactDOM.findDOMNode(this.refs.MaxUsersPerTeam).value, 10))) {
@@ -239,6 +240,39 @@ export default class TeamSettings extends React.Component {
                                     {'false'}
                             </label>
                             <p className='help-text'>{'When true, You cannot create a team name with reserved words like www, admin, support, test, channel, etc'}</p>
+                        </div>
+                    </div>
+
+                    <div className='form-group'>
+                        <label
+                            className='control-label col-sm-4'
+                            htmlFor='EnableTeamListing'
+                        >
+                            {'Enable Team Directory: '}
+                        </label>
+                        <div className='col-sm-8'>
+                            <label className='radio-inline'>
+                                <input
+                                    type='radio'
+                                    name='EnableTeamListing'
+                                    value='true'
+                                    ref='EnableTeamListing'
+                                    defaultChecked={this.props.config.TeamSettings.EnableTeamListing}
+                                    onChange={this.handleChange}
+                                />
+                                    {'true'}
+                            </label>
+                            <label className='radio-inline'>
+                                <input
+                                    type='radio'
+                                    name='EnableTeamListing'
+                                    value='false'
+                                    defaultChecked={!this.props.config.TeamSettings.EnableTeamListing}
+                                    onChange={this.handleChange}
+                                />
+                                    {'false'}
+                            </label>
+                            <p className='help-text'>{'When true, teams that are configured to show in team directory will show on main page inplace of creating a new team.'}</p>
                         </div>
                     </div>
 

@@ -247,6 +247,76 @@ func TestPostStoreDelete2Level(t *testing.T) {
 	}
 }
 
+func TestPostStorePermDelete1Level(t *testing.T) {
+	Setup()
+
+	o1 := &model.Post{}
+	o1.ChannelId = model.NewId()
+	o1.UserId = model.NewId()
+	o1.Message = "a" + model.NewId() + "b"
+	o1 = (<-store.Post().Save(o1)).Data.(*model.Post)
+
+	o2 := &model.Post{}
+	o2.ChannelId = o1.ChannelId
+	o2.UserId = model.NewId()
+	o2.Message = "a" + model.NewId() + "b"
+	o2.ParentId = o1.Id
+	o2.RootId = o1.Id
+	o2 = (<-store.Post().Save(o2)).Data.(*model.Post)
+
+	if r2 := <-store.Post().PermanentDeleteByUser(o2.UserId); r2.Err != nil {
+		t.Fatal(r2.Err)
+	}
+
+	if r3 := (<-store.Post().Get(o1.Id)); r3.Err != nil {
+		t.Fatal("Deleted id shouldn't have failed")
+	}
+
+	if r4 := (<-store.Post().Get(o2.Id)); r4.Err == nil {
+		t.Fatal("Deleted id should have failed")
+	}
+}
+
+func TestPostStorePermDelete1Level2(t *testing.T) {
+	Setup()
+
+	o1 := &model.Post{}
+	o1.ChannelId = model.NewId()
+	o1.UserId = model.NewId()
+	o1.Message = "a" + model.NewId() + "b"
+	o1 = (<-store.Post().Save(o1)).Data.(*model.Post)
+
+	o2 := &model.Post{}
+	o2.ChannelId = o1.ChannelId
+	o2.UserId = model.NewId()
+	o2.Message = "a" + model.NewId() + "b"
+	o2.ParentId = o1.Id
+	o2.RootId = o1.Id
+	o2 = (<-store.Post().Save(o2)).Data.(*model.Post)
+
+	o3 := &model.Post{}
+	o3.ChannelId = model.NewId()
+	o3.UserId = model.NewId()
+	o3.Message = "a" + model.NewId() + "b"
+	o3 = (<-store.Post().Save(o3)).Data.(*model.Post)
+
+	if r2 := <-store.Post().PermanentDeleteByUser(o1.UserId); r2.Err != nil {
+		t.Fatal(r2.Err)
+	}
+
+	if r3 := (<-store.Post().Get(o1.Id)); r3.Err == nil {
+		t.Fatal("Deleted id should have failed")
+	}
+
+	if r4 := (<-store.Post().Get(o2.Id)); r4.Err == nil {
+		t.Fatal("Deleted id should have failed")
+	}
+
+	if r5 := (<-store.Post().Get(o3.Id)); r5.Err != nil {
+		t.Fatal("Deleted id shouldn't have failed")
+	}
+}
+
 func TestPostStoreGetWithChildren(t *testing.T) {
 	Setup()
 
@@ -379,6 +449,111 @@ func TestPostStoreGetPostsWtihDetails(t *testing.T) {
 	}
 
 	if r1.Posts[o1.Id].Message != o1.Message {
+		t.Fatal("Missing parent")
+	}
+}
+
+func TestPostStoreGetPostsBeforeAfter(t *testing.T) {
+	Setup()
+	o0 := &model.Post{}
+	o0.ChannelId = model.NewId()
+	o0.UserId = model.NewId()
+	o0.Message = "a" + model.NewId() + "b"
+	o0 = (<-store.Post().Save(o0)).Data.(*model.Post)
+	time.Sleep(2 * time.Millisecond)
+
+	o1 := &model.Post{}
+	o1.ChannelId = model.NewId()
+	o1.UserId = model.NewId()
+	o1.Message = "a" + model.NewId() + "b"
+	o1 = (<-store.Post().Save(o1)).Data.(*model.Post)
+	time.Sleep(2 * time.Millisecond)
+
+	o2 := &model.Post{}
+	o2.ChannelId = o1.ChannelId
+	o2.UserId = model.NewId()
+	o2.Message = "a" + model.NewId() + "b"
+	o2.ParentId = o1.Id
+	o2.RootId = o1.Id
+	o2 = (<-store.Post().Save(o2)).Data.(*model.Post)
+	time.Sleep(2 * time.Millisecond)
+
+	o2a := &model.Post{}
+	o2a.ChannelId = o1.ChannelId
+	o2a.UserId = model.NewId()
+	o2a.Message = "a" + model.NewId() + "b"
+	o2a.ParentId = o1.Id
+	o2a.RootId = o1.Id
+	o2a = (<-store.Post().Save(o2a)).Data.(*model.Post)
+	time.Sleep(2 * time.Millisecond)
+
+	o3 := &model.Post{}
+	o3.ChannelId = o1.ChannelId
+	o3.UserId = model.NewId()
+	o3.Message = "a" + model.NewId() + "b"
+	o3.ParentId = o1.Id
+	o3.RootId = o1.Id
+	o3 = (<-store.Post().Save(o3)).Data.(*model.Post)
+	time.Sleep(2 * time.Millisecond)
+
+	o4 := &model.Post{}
+	o4.ChannelId = o1.ChannelId
+	o4.UserId = model.NewId()
+	o4.Message = "a" + model.NewId() + "b"
+	o4 = (<-store.Post().Save(o4)).Data.(*model.Post)
+	time.Sleep(2 * time.Millisecond)
+
+	o5 := &model.Post{}
+	o5.ChannelId = o1.ChannelId
+	o5.UserId = model.NewId()
+	o5.Message = "a" + model.NewId() + "b"
+	o5.ParentId = o4.Id
+	o5.RootId = o4.Id
+	o5 = (<-store.Post().Save(o5)).Data.(*model.Post)
+
+	r1 := (<-store.Post().GetPostsBefore(o1.ChannelId, o1.Id, 4, 0)).Data.(*model.PostList)
+
+	if len(r1.Posts) != 0 {
+		t.Fatal("Wrong size")
+	}
+
+	r2 := (<-store.Post().GetPostsAfter(o1.ChannelId, o1.Id, 4, 0)).Data.(*model.PostList)
+
+	if r2.Order[0] != o4.Id {
+		t.Fatal("invalid order")
+	}
+
+	if r2.Order[1] != o3.Id {
+		t.Fatal("invalid order")
+	}
+
+	if r2.Order[2] != o2a.Id {
+		t.Fatal("invalid order")
+	}
+
+	if r2.Order[3] != o2.Id {
+		t.Fatal("invalid order")
+	}
+
+	if len(r2.Posts) != 5 {
+		t.Fatal("wrong size")
+	}
+
+	r3 := (<-store.Post().GetPostsBefore(o3.ChannelId, o3.Id, 2, 0)).Data.(*model.PostList)
+
+	if r3.Order[0] != o2a.Id {
+		t.Fatal("invalid order")
+	}
+
+	if r3.Order[1] != o2.Id {
+		t.Fatal("invalid order")
+	}
+
+	if len(r3.Posts) != 3 {
+		t.Fatal("wrong size")
+	}
+
+	if r3.Posts[o1.Id].Message != o1.Message {
 		t.Fatal("Missing parent")
 	}
 }
@@ -526,32 +701,32 @@ func TestPostStoreSearch(t *testing.T) {
 	o5 = (<-store.Post().Save(o5)).Data.(*model.Post)
 
 	r1 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "corey", IsHashtag: false})).Data.(*model.PostList)
-	if len(r1.Order) != 1 && r1.Order[0] != o1.Id {
+	if len(r1.Order) != 1 || r1.Order[0] != o1.Id {
 		t.Fatal("returned wrong search result")
 	}
 
 	r3 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "new", IsHashtag: false})).Data.(*model.PostList)
-	if len(r3.Order) != 2 && r3.Order[0] != o1.Id {
+	if len(r3.Order) != 2 || (r3.Order[0] != o1.Id && r3.Order[1] != o1.Id) {
 		t.Fatal("returned wrong search result")
 	}
 
 	r4 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "john", IsHashtag: false})).Data.(*model.PostList)
-	if len(r4.Order) != 1 && r4.Order[0] != o2.Id {
+	if len(r4.Order) != 1 || r4.Order[0] != o2.Id {
 		t.Fatal("returned wrong search result")
 	}
 
 	r5 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "matter*", IsHashtag: false})).Data.(*model.PostList)
-	if len(r5.Order) != 1 && r5.Order[0] != o1.Id {
+	if len(r5.Order) != 1 || r5.Order[0] != o1.Id {
 		t.Fatal("returned wrong search result")
 	}
 
 	r6 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "#hashtag", IsHashtag: true})).Data.(*model.PostList)
-	if len(r6.Order) != 1 && r6.Order[0] != o4.Id {
+	if len(r6.Order) != 1 || r6.Order[0] != o4.Id {
 		t.Fatal("returned wrong search result")
 	}
 
 	r7 := (<-store.Post().Search(teamId, userId, &model.SearchParams{Terms: "#secret", IsHashtag: true})).Data.(*model.PostList)
-	if len(r7.Order) != 1 && r7.Order[0] != o5.Id {
+	if len(r7.Order) != 1 || r7.Order[0] != o5.Id {
 		t.Fatal("returned wrong search result")
 	}
 

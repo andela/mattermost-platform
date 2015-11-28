@@ -6,10 +6,13 @@ package model
 import (
 	"encoding/json"
 	"io"
+	"unicode/utf8"
 )
 
 const (
 	PREFERENCE_CATEGORY_DIRECT_CHANNEL_SHOW = "direct_channel_show"
+	PREFERENCE_CATEGORY_TUTORIAL_STEPS      = "tutorial_step"
+	PREFERENCE_CATEGORY_ADVANCED_SETTINGS   = "advanced_settings"
 )
 
 type Preference struct {
@@ -52,7 +55,7 @@ func (o *Preference) IsValid() *AppError {
 		return NewAppError("Preference.IsValid", "Invalid name", "name="+o.Name)
 	}
 
-	if len(o.Value) > 128 {
+	if utf8.RuneCountInString(o.Value) > 128 {
 		return NewAppError("Preference.IsValid", "Value is too long", "value="+o.Value)
 	}
 

@@ -24,15 +24,25 @@
   * ```postgre=# \q```
 1. You can exit the postgres account by typing:
   * ``` exit```
+1. Allow Postgres to listen on all assigned IP Addresses
+  * ```sudo vi /etc/postgresql/9.3/main/postgresql.conf```
+  * Uncomment 'listen_addresses' and change 'localhost' to '*'
+1. Alter pg_hba.conf to allow the mattermost server to talk to the postgres database
+  * ```sudo vi /etc/postgresql/9.3/main/pg_hba.conf```
+  * Add the following line to the 'IPv4 local connections'
+  * host    all             all             10.10.10.2/32         md5
+1. Reload Postgres database
+  * ```sudo /etc/init.d/postgresql reload```
+
 
 ## Set up Mattermost Server
 1. For the purposes of this guide we will assume this server has an IP address of 10.10.10.2
 1. Download the latest Mattermost Server by typing:
-  * ``` wget https://github.com/mattermost/platform/releases/download/v1.1.0/mattermost.tar.gz```
+  * ``` wget https://github.com/mattermost/platform/releases/download/v1.2.1/mattermost.tar.gz```
 1. Unzip the Mattermost Server by typing:
   * ``` tar -xvzf mattermost.tar.gz```
 1. For the sake of making this guide simple we located the files at `/home/ubuntu/mattermost`. In the future we will give guidance for storing under `/opt`.
-1. We have also elected to run the Mattermost Server as the `ubuntu` account for simplicity.  We recommend settings up and running the service under a `mattermost` user account with limited permissions.
+1. We have also elected to run the Mattermost Server as the `ubuntu` account for simplicity.  We recommend setting up and running the service under a `mattermost` user account with limited permissions.
 1. Create the storage directory for files.  We assume you will have attached a large drive for storage of images and files.  For this setup we will assume the directory is located at `/mattermost/data`.
   * Create the directory by typing:
   * ``` sudo mkdir -p /mattermost/data```
@@ -103,7 +113,7 @@ exec bin/platform
 		  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
 		  proxy_set_header X-Forwarded-Proto $scheme;
 		  proxy_set_header   X-Frame-Options   SAMEORIGIN;
-          proxy_pass http://localhost:8065;
+          proxy_pass http://10.10.10.2:8065;
       }
     }
 ```

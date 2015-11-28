@@ -1,12 +1,12 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var UserStore = require('../stores/user_store.jsx');
+import UserStore from '../stores/user_store.jsx';
 var Popover = ReactBootstrap.Popover;
 var Overlay = ReactBootstrap.Overlay;
-const Utils = require('../utils/utils.jsx');
+import * as Utils from '../utils/utils.jsx';
 
-const ChannelStore = require('../stores/channel_store.jsx');
+import ChannelStore from '../stores/channel_store.jsx';
 
 export default class PopoverListMembers extends React.Component {
     constructor(props) {
@@ -69,8 +69,6 @@ export default class PopoverListMembers extends React.Component {
 
     render() {
         let popoverHtml = [];
-        let count = 0;
-        let countText = '-';
         const members = this.props.members;
         const teamMembers = UserStore.getProfilesUsernameMap();
         const currentUserId = UserStore.getCurrentId();
@@ -147,15 +145,22 @@ export default class PopoverListMembers extends React.Component {
                             </div>
                         </div>
                     );
-                    count++;
                 }
             });
+        }
 
-            if (count > 20) {
-                countText = '20+';
-            } else if (count > 0) {
-                countText = count.toString();
-            }
+        let count = this.props.memberCount;
+        let countText = '-';
+
+        // fall back to checking the length of the member list if the count isn't set
+        if (!count && members) {
+            count = members.length;
+        }
+
+        if (count > 20) {
+            countText = '20+';
+        } else if (count > 0) {
+            countText = count.toString();
         }
 
         return (
@@ -195,5 +200,6 @@ export default class PopoverListMembers extends React.Component {
 
 PopoverListMembers.propTypes = {
     members: React.PropTypes.array.isRequired,
+    memberCount: React.PropTypes.number,
     channelId: React.PropTypes.string.isRequired
 };

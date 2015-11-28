@@ -9,6 +9,7 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -17,16 +18,19 @@ const (
 )
 
 type Team struct {
-	Id             string `json:"id"`
-	CreateAt       int64  `json:"create_at"`
-	UpdateAt       int64  `json:"update_at"`
-	DeleteAt       int64  `json:"delete_at"`
-	DisplayName    string `json:"display_name"`
-	Name           string `json:"name"`
-	Email          string `json:"email"`
-	Type           string `json:"type"`
-	CompanyName    string `json:"company_name"`
-	AllowedDomains string `json:"allowed_domains"`
+	Id               string `json:"id"`
+	CreateAt         int64  `json:"create_at"`
+	UpdateAt         int64  `json:"update_at"`
+	DeleteAt         int64  `json:"delete_at"`
+	DisplayName      string `json:"display_name"`
+	Name             string `json:"name"`
+	Email            string `json:"email"`
+	Type             string `json:"type"`
+	CompanyName      string `json:"company_name"`
+	AllowedDomains   string `json:"allowed_domains"`
+	InviteId         string `json:"invite_id"`
+	AllowOpenInvite  bool   `json:"allow_open_invite"`
+	AllowTeamListing bool   `json:"allow_team_listing"`
 }
 
 type Invites struct {
@@ -119,7 +123,7 @@ func (o *Team) IsValid(restrictTeamNames bool) *AppError {
 		return NewAppError("Team.IsValid", "Invalid email", "id="+o.Id)
 	}
 
-	if len(o.DisplayName) > 64 {
+	if utf8.RuneCountInString(o.DisplayName) == 0 || utf8.RuneCountInString(o.DisplayName) > 64 {
 		return NewAppError("Team.IsValid", "Invalid name", "id="+o.Id)
 	}
 
@@ -157,6 +161,10 @@ func (o *Team) PreSave() {
 
 	o.CreateAt = GetMillis()
 	o.UpdateAt = o.CreateAt
+
+	if len(o.InviteId) == 0 {
+		o.InviteId = NewId()
+	}
 }
 
 func (o *Team) PreUpdate() {
@@ -222,6 +230,5 @@ func (o *Team) PreExport() {
 
 func (o *Team) Sanitize() {
 	o.Email = ""
-	o.Type = ""
 	o.AllowedDomains = ""
 }

@@ -1,17 +1,18 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var AppDispatcher = require('../dispatcher/app_dispatcher.jsx');
-var ChannelStore = require('../stores/channel_store.jsx');
-var UserStore = require('../stores/user_store.jsx');
-var PreferenceStore = require('../stores/preference_store.jsx');
-var TeamStore = require('../stores/team_store.jsx');
-var Constants = require('../utils/constants.jsx');
+import AppDispatcher from '../dispatcher/app_dispatcher.jsx';
+import * as EventHelpers from '../dispatcher/event_helpers.jsx';
+import ChannelStore from '../stores/channel_store.jsx';
+import UserStore from '../stores/user_store.jsx';
+import PreferenceStore from '../stores/preference_store.jsx';
+import TeamStore from '../stores/team_store.jsx';
+import Constants from '../utils/constants.jsx';
 var ActionTypes = Constants.ActionTypes;
-var Client = require('./client.jsx');
-var AsyncClient = require('./async_client.jsx');
-var client = require('./client.jsx');
-var Autolinker = require('autolinker');
+import * as Client from './client.jsx';
+import * as AsyncClient from './async_client.jsx';
+import * as client from './client.jsx';
+import Autolinker from 'autolinker';
 
 export function isEmail(email) {
     //var regex = /^([a-zA-Z0-9_.+-])+\@(([a-zA-Z0-9-])+\.)+([a-zA-Z0-9]{2,4})+$/;
@@ -56,6 +57,20 @@ export function isTestDomain() {
         return true;
     }
 
+    return false;
+}
+
+export function isChrome() {
+    if (navigator.userAgent.indexOf('Chrome') > -1) {
+        return true;
+    }
+    return false;
+}
+
+export function isSafari() {
+    if (navigator.userAgent.indexOf('Safari') !== -1 && navigator.userAgent.indexOf('Chrome') === -1) {
+        return true;
+    }
     return false;
 }
 
@@ -137,10 +152,14 @@ export function notifyMe(title, body, channel) {
     }
 }
 
+var canDing = true;
+
 export function ding() {
-    if (!isBrowserFirefox()) {
-        var audio = new Audio('/static/images/ding.mp3');
+    if (!isBrowserFirefox() && canDing) {
+        var audio = new Audio('/static/images/bing.mp3');
         audio.play();
+        canDing = false;
+        setTimeout(() => canDing = true, 3000);
     }
 }
 
@@ -293,8 +312,98 @@ export function escapeRegExp(string) {
     return string.replace(/([.*+?^=!:${}()|\[\]\/\\])/g, '\\$1');
 }
 
-export function areStatesEqual(state1, state2) {
-    return JSON.stringify(state1) === JSON.stringify(state2);
+// Taken from http://stackoverflow.com/questions/1068834/object-comparison-in-javascript and modified slightly
+export function areObjectsEqual(x, y) {
+    let p;
+    const leftChain = [];
+    const rightChain = [];
+
+    // Remember that NaN === NaN returns false
+    // and isNaN(undefined) returns true
+    if (isNaN(x) && isNaN(y) && typeof x === 'number' && typeof y === 'number') {
+        return true;
+    }
+
+    // Compare primitives and functions.
+    // Check if both arguments link to the same object.
+    // Especially useful on step when comparing prototypes
+    if (x === y) {
+        return true;
+    }
+
+    // Works in case when functions are created in constructor.
+    // Comparing dates is a common scenario. Another built-ins?
+    // We can even handle functions passed across iframes
+    if ((typeof x === 'function' && typeof y === 'function') ||
+       (x instanceof Date && y instanceof Date) ||
+       (x instanceof RegExp && y instanceof RegExp) ||
+       (x instanceof String && y instanceof String) ||
+       (x instanceof Number && y instanceof Number)) {
+        return x.toString() === y.toString();
+    }
+
+    // At last checking prototypes as good a we can
+    if (!(x instanceof Object && y instanceof Object)) {
+        return false;
+    }
+
+    if (x.isPrototypeOf(y) || y.isPrototypeOf(x)) {
+        return false;
+    }
+
+    if (x.constructor !== y.constructor) {
+        return false;
+    }
+
+    if (x.prototype !== y.prototype) {
+        return false;
+    }
+
+    // Check for infinitive linking loops
+    if (leftChain.indexOf(x) > -1 || rightChain.indexOf(y) > -1) {
+        return false;
+    }
+
+    // Quick checking of one object beeing a subset of another.
+    for (p in y) {
+        if (y.hasOwnProperty(p) !== x.hasOwnProperty(p)) {
+            return false;
+        } else if (typeof y[p] !== typeof x[p]) {
+            return false;
+        }
+    }
+
+    for (p in x) {
+        if (y.hasOwnProperty(p) !== x.hasOwnProperty(p)) {
+            return false;
+        } else if (typeof y[p] !== typeof x[p]) {
+            return false;
+        }
+
+        switch (typeof (x[p])) {
+        case 'object':
+        case 'function':
+
+            leftChain.push(x);
+            rightChain.push(y);
+
+            if (!areObjectsEqual(x[p], y[p])) {
+                return false;
+            }
+
+            leftChain.pop();
+            rightChain.pop();
+            break;
+
+        default:
+            if (x[p] !== y[p]) {
+                return false;
+            }
+            break;
+        }
+    }
+
+    return true;
 }
 
 export function replaceHtmlEntities(text) {
@@ -430,12 +539,11 @@ export function applyTheme(theme) {
 
     if (theme.sidebarText) {
         changeCss('.sidebar--left .nav-pills__container li>a, .sidebar--right, .settings-modal .nav-pills>li a, .sidebar--menu', 'color:' + changeOpacity(theme.sidebarText, 0.6), 1);
-        changeCss('@media(max-width: 768px){.settings-modal .settings-table .nav>li>a', 'color:' + theme.sidebarText, 1);
+        changeCss('@media(max-width: 960px){.settings-modal .settings-table .nav>li>a', 'color:' + theme.sidebarText, 1);
         changeCss('.sidebar--left .nav-pills__container li>h4, .sidebar--left .add-channel-btn', 'color:' + changeOpacity(theme.sidebarText, 0.6), 1);
         changeCss('.sidebar--left .add-channel-btn:hover, .sidebar--left .add-channel-btn:focus', 'color:' + theme.sidebarText, 1);
-        changeCss('.sidebar--left, .sidebar--right .sidebar--right__header', 'border-color:' + changeOpacity(theme.sidebarText, 0.2), 1);
         changeCss('.sidebar--left .status path', 'fill:' + changeOpacity(theme.sidebarText, 0.5), 1);
-        changeCss('@media(max-width: 768px){.settings-modal .settings-table .nav>li>a', 'border-color:' + changeOpacity(theme.sidebarText, 0.2), 2);
+        changeCss('@media(max-width: 960px){.settings-modal .settings-table .nav>li>a', 'border-color:' + changeOpacity(theme.sidebarText, 0.2), 2);
     }
 
     if (theme.sidebarUnreadText) {
@@ -444,7 +552,7 @@ export function applyTheme(theme) {
 
     if (theme.sidebarTextHoverBg) {
         changeCss('.sidebar--left .nav-pills__container li>a:hover, .sidebar--left .nav-pills__container li>a:focus, .settings-modal .nav-pills>li:hover a, .settings-modal .nav-pills>li:focus a', 'background:' + theme.sidebarTextHoverBg, 1);
-        changeCss('@media(max-width: 768px){.settings-modal .settings-table .nav>li:hover a', 'background:' + theme.sidebarTextHoverBg, 1);
+        changeCss('@media(max-width: 960px){.settings-modal .settings-table .nav>li:hover a', 'background:' + theme.sidebarTextHoverBg, 1);
     }
 
     if (theme.sidebarTextActiveBorder) {
@@ -454,15 +562,14 @@ export function applyTheme(theme) {
     if (theme.sidebarTextActiveColor) {
         changeCss('.sidebar--left .nav-pills__container li.active a, .sidebar--left .nav-pills__container li.active a:hover, .sidebar--left .nav-pills__container li.active a:focus, .settings-modal .nav-pills>li.active a, .settings-modal .nav-pills>li.active a:hover, .settings-modal .nav-pills>li.active a:active', 'color:' + theme.sidebarTextActiveColor, 2);
         changeCss('.sidebar--left .nav li.active a, .sidebar--left .nav li.active a:hover, .sidebar--left .nav li.active a:focus', 'background:' + changeOpacity(theme.sidebarTextActiveColor, 0.1), 1);
-        changeCss('.search-help-popover .search-autocomplete__item:hover', 'background:' + changeOpacity(theme.sidebarTextActiveColor, 0.05), 1);
-        changeCss('.search-help-popover .search-autocomplete__item.selected', 'background:' + changeOpacity(theme.sidebarTextActiveColor, 0.15), 1);
     }
 
     if (theme.sidebarHeaderBg) {
         changeCss('.sidebar--left .team__header, .sidebar--menu .team__header', 'background:' + theme.sidebarHeaderBg, 1);
         changeCss('.modal .modal-header', 'background:' + theme.sidebarHeaderBg, 1);
         changeCss('#navbar .navbar-default', 'background:' + theme.sidebarHeaderBg, 1);
-        changeCss('@media(max-width: 768px){.search-bar__container', 'background:' + theme.sidebarHeaderBg, 1);
+        changeCss('@media(max-width: 960px){.search-bar__container', 'background:' + theme.sidebarHeaderBg, 1);
+        changeCss('.attachment .attachment__container', 'border-left-color:' + theme.sidebarHeaderBg, 1);
     }
 
     if (theme.sidebarHeaderTextColor) {
@@ -472,7 +579,7 @@ export function applyTheme(theme) {
         changeCss('.modal .modal-header .modal-title, .modal .modal-header .modal-title .name, .modal .modal-header button.close', 'color:' + theme.sidebarHeaderTextColor, 1);
         changeCss('#navbar .navbar-default .navbar-brand .heading', 'color:' + theme.sidebarHeaderTextColor, 1);
         changeCss('#navbar .navbar-default .navbar-toggle .icon-bar, ', 'background:' + theme.sidebarHeaderTextColor, 1);
-        changeCss('@media(max-width: 768px){.search-bar__container', 'color:' + theme.sidebarHeaderTextColor, 2);
+        changeCss('@media(max-width: 960px){.search-bar__container', 'color:' + theme.sidebarHeaderTextColor, 2);
     }
 
     if (theme.onlineIndicator) {
@@ -494,62 +601,64 @@ export function applyTheme(theme) {
         changeCss('#post-list .post-list-holder-by-time', 'background:' + theme.centerChannelBg, 1);
         changeCss('#post-create', 'background:' + theme.centerChannelBg, 1);
         changeCss('.date-separator .separator__text, .new-separator .separator__text', 'background:' + theme.centerChannelBg, 1);
-        changeCss('.post-image__column .post-image__details', 'background:' + theme.centerChannelBg, 1);
-        changeCss('.sidebar--right, .dropdown-menu, .popover', 'background:' + theme.centerChannelBg, 1);
+        changeCss('.post-image__column .post-image__details, .search-help-popover .search-autocomplete__divider span', 'background:' + theme.centerChannelBg, 1);
+        changeCss('.sidebar--right, .dropdown-menu, .popover, .tip-overlay', 'background:' + theme.centerChannelBg, 1);
         changeCss('.popover.bottom>.arrow:after', 'border-bottom-color:' + theme.centerChannelBg, 1);
-        changeCss('.popover.right>.arrow:after', 'border-right-color:' + theme.centerChannelBg, 1);
+        changeCss('.popover.right>.arrow:after, .tip-overlay.tip-overlay--sidebar .arrow, .tip-overlay.tip-overlay--header .arrow', 'border-right-color:' + theme.centerChannelBg, 1);
         changeCss('.popover.left>.arrow:after', 'border-left-color:' + theme.centerChannelBg, 1);
-        changeCss('.popover.top>.arrow:after', 'border-top-color:' + theme.centerChannelBg, 1);
+        changeCss('.popover.top>.arrow:after, .tip-overlay.tip-overlay--chat .arrow', 'border-top-color:' + theme.centerChannelBg, 1);
         changeCss('.search-bar__container .search__form .search-bar, .form-control', 'background:' + theme.centerChannelBg, 1);
+        changeCss('.attachment__content', 'background:' + theme.centerChannelBg, 1);
     }
 
     if (theme.centerChannelColor) {
-        changeCss('.app__content, .post-create__container .post-create-body .btn-file, .post-create__container .post-create-footer .msg-typing, .command-name, .modal .modal-content, .dropdown-menu, .popover, .mentions-name', 'color:' + theme.centerChannelColor, 1);
+        changeCss('.sidebar--left, .sidebar--right .sidebar--right__header', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 1);
+        changeCss('.app__content, .post-create__container .post-create-body .btn-file, .post-create__container .post-create-footer .msg-typing, .command-name, .modal .modal-content, .dropdown-menu, .popover, .mentions-name, .tip-overlay', 'color:' + theme.centerChannelColor, 1);
         changeCss('#post-create', 'color:' + theme.centerChannelColor, 2);
-        changeCss('.channel-header__links a', 'fill:' + changeOpacity(theme.centerChannelColor, 0.7), 1);
-        changeCss('.channel-header__links a:hover, .channel-header__links a:active', 'fill:' + theme.centerChannelColor, 2);
         changeCss('.mentions--top, .command-box', 'box-shadow:' + changeOpacity(theme.centerChannelColor, 0.2) + ' 1px -3px 12px', 3);
         changeCss('.mentions--top, .command-box', '-webkit-box-shadow:' + changeOpacity(theme.centerChannelColor, 0.2) + ' 1px -3px 12px', 2);
         changeCss('.mentions--top, .command-box', '-moz-box-shadow:' + changeOpacity(theme.centerChannelColor, 0.2) + ' 1px -3px 12px', 1);
         changeCss('.dropdown-menu, .popover ', 'box-shadow:' + changeOpacity(theme.centerChannelColor, 0.1) + ' 0px 6px 12px', 3);
         changeCss('.dropdown-menu, .popover ', '-webkit-box-shadow:' + changeOpacity(theme.centerChannelColor, 0.1) + ' 0px 6px 12px', 2);
         changeCss('.dropdown-menu, .popover ', '-moz-box-shadow:' + changeOpacity(theme.centerChannelColor, 0.1) + ' 0px 6px 12px', 1);
-        changeCss('.post-body hr, .loading-screen .loading__content .round', 'background:' + theme.centerChannelColor, 1);
+        changeCss('.post__body hr, .loading-screen .loading__content .round, .tutorial__circles .circle', 'background:' + theme.centerChannelColor, 1);
         changeCss('.channel-header .heading', 'color:' + theme.centerChannelColor, 1);
         changeCss('.markdown__table tbody tr:nth-child(2n)', 'background:' + changeOpacity(theme.centerChannelColor, 0.07), 1);
         changeCss('.channel-header__info>div.dropdown .header-dropdown__icon', 'color:' + changeOpacity(theme.centerChannelColor, 0.8), 1);
         changeCss('.channel-header #member_popover', 'color:' + changeOpacity(theme.centerChannelColor, 0.8), 1);
         changeCss('.custom-textarea, .custom-textarea:focus, .preview-container .preview-div, .post-image__column .post-image__details, .sidebar--right .sidebar-right__body, .markdown__table th, .markdown__table td, .command-box, .modal .modal-content, .settings-modal .settings-table .settings-content .divider-light, .webhooks__container, .dropdown-menu, .modal .modal-header, .popover, .mentions--top .mentions-box', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 1);
         changeCss('.popover.bottom>.arrow', 'border-bottom-color:' + changeOpacity(theme.centerChannelColor, 0.25), 1);
+        changeCss('.search-help-popover .search-autocomplete__divider span', 'color:' + changeOpacity(theme.centerChannelColor, 0.7), 1);
         changeCss('.popover.right>.arrow', 'border-right-color:' + changeOpacity(theme.centerChannelColor, 0.25), 1);
         changeCss('.popover.left>.arrow', 'border-left-color:' + changeOpacity(theme.centerChannelColor, 0.25), 1);
         changeCss('.popover.top>.arrow', 'border-top-color:' + changeOpacity(theme.centerChannelColor, 0.25), 1);
         changeCss('.command-name, .popover .popover-title', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 1);
-        changeCss('.dropdown-menu .divider', 'background:' + theme.centerChannelColor, 1);
+        changeCss('.dropdown-menu .divider, .search-help-popover .search-autocomplete__divider:before', 'background:' + theme.centerChannelColor, 1);
         changeCss('.custom-textarea', 'color:' + theme.centerChannelColor, 1);
         changeCss('.post-image__column', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 2);
         changeCss('.post-image__column .post-image__details', 'color:' + theme.centerChannelColor, 2);
         changeCss('.post-image__column a, .post-image__column a:hover, .post-image__column a:focus', 'color:' + theme.centerChannelColor, 1);
         changeCss('.search-bar__container .search__form .search-bar, .form-control', 'color:' + theme.centerChannelColor, 2);
-        changeCss('@media(max-width: 768px){.search-bar__container .search__form .search-bar', 'background:' + changeOpacity(theme.centerChannelColor, 0.2) + '; color: inherit;', 1);
+        changeCss('@media(max-width: 960px){.search-bar__container .search__form .search-bar', 'background:' + changeOpacity(theme.centerChannelColor, 0.2) + '; color: inherit;', 1);
         changeCss('.input-group-addon, .search-bar__container .search__form, .form-control', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 1);
         changeCss('.form-control:focus', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.3), 1);
+        changeCss('.attachment .attachment__content', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.3), 1);
         changeCss('.channel-intro .channel-intro__content, .webhooks__container', 'background:' + changeOpacity(theme.centerChannelColor, 0.05), 1);
         changeCss('.date-separator .separator__text', 'color:' + theme.centerChannelColor, 2);
         changeCss('.date-separator .separator__hr, .modal-footer, .modal .custom-textarea, .post-right__container .post.post--root hr, .search-item-container', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 1);
         changeCss('.modal .custom-textarea:focus', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.3), 1);
         changeCss('.channel-intro, .settings-modal .settings-table .settings-content .divider-dark, hr, .settings-modal .settings-table .settings-links', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.2), 1);
-        changeCss('.post.current--user .post-body, .post.post--comment.other--root.current--user .post-comment, pre', 'background:' + changeOpacity(theme.centerChannelColor, 0.07), 1);
-        changeCss('.post.current--user .post-body, .post.post--comment.other--root.current--user .post-comment, .post.post--comment.other--root .post-comment, .post.same--root .post-body, .modal .more-table tbody>tr td, .member-div:first-child, .member-div, .access-history__table .access__report, .activity-log__table', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.1), 2);
-        changeCss('@media(max-width: 1440px){.post.same--root', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.07), 2);
-        changeCss('@media(max-width: 1440px){.post.same--root', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.07), 2);
+        changeCss('.post.current--user .post__body, .post.post--comment.other--root.current--user .post-comment, pre', 'background:' + changeOpacity(theme.centerChannelColor, 0.07), 1);
+        changeCss('.post.current--user .post__body, .post.post--comment.other--root.current--user .post-comment, .post.same--root.post--comment .post__body, .modal .more-table tbody>tr td, .member-div:first-child, .member-div, .access-history__table .access__report, .activity-log__table', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.1), 2);
         changeCss('@media(max-width: 1800px){.inner__wrap.move--left .post.post--comment.same--root', 'border-color:' + changeOpacity(theme.centerChannelColor, 0.07), 2);
-        changeCss('.post:hover, .modal .more-table tbody>tr:hover td, .sidebar--right .sidebar--right__header, .settings-modal .settings-table .settings-content .section-min:hover', 'background:' + changeOpacity(theme.centerChannelColor, 0.07), 1);
+        changeCss('.post:hover, .modal .more-table tbody>tr:hover td, .settings-modal .settings-table .settings-content .section-min:hover', 'background:' + changeOpacity(theme.centerChannelColor, 0.07), 1);
         changeCss('.date-separator.hovered--before:after, .date-separator.hovered--after:before, .new-separator.hovered--after:before, .new-separator.hovered--before:after', 'background:' + changeOpacity(theme.centerChannelColor, 0.07), 1);
         changeCss('.command-name:hover, .mentions-name:hover, .mentions-focus, .dropdown-menu>li>a:focus, .dropdown-menu>li>a:hover, .bot-indicator', 'background:' + changeOpacity(theme.centerChannelColor, 0.15), 1);
         changeCss('code', 'background:' + changeOpacity(theme.centerChannelColor, 0.1), 1);
-        changeCss('.post.current--user:hover .post-body ', 'background: none;', 1);
+        changeCss('@media(min-width: 960px){.post.current--user:hover .post__body ', 'background: none;', 1);
         changeCss('.sidebar--right', 'color:' + theme.centerChannelColor, 2);
+        changeCss('.search-help-popover .search-autocomplete__item:hover', 'background:' + changeOpacity(theme.centerChannelColor, 0.05), 1);
+        changeCss('.search-help-popover .search-autocomplete__item.selected', 'background:' + changeOpacity(theme.centerChannelColor, 0.15), 1);
     }
 
     if (theme.newMessageSeparator) {
@@ -563,7 +672,7 @@ export function applyTheme(theme) {
     }
 
     if (theme.buttonBg) {
-        changeCss('.btn.btn-primary', 'background:' + theme.buttonBg, 1);
+        changeCss('.btn.btn-primary, .tutorial__circles .circle.active', 'background:' + theme.buttonBg, 1);
         changeCss('.btn.btn-primary:hover, .btn.btn-primary:active, .btn.btn-primary:focus', 'background:' + changeColor(theme.buttonBg, -0.25), 1);
         changeCss('.file-playback-controls', 'color:' + changeColor(theme.buttonBg, -0.25), 1);
     }
@@ -579,6 +688,11 @@ export function applyTheme(theme) {
     if (theme.mentionHighlightLink) {
         changeCss('.mention-highlight .mention-link', 'color:' + theme.mentionHighlightLink, 1);
     }
+
+    if (!theme.codeTheme) {
+        theme.codeTheme = Constants.DEFAULT_CODE_THEME;
+    }
+    updateCodeTheme(theme.codeTheme);
 }
 export function changeCss(className, classValue, classRepeat) {
     // we need invisible container to store additional css definitions
@@ -612,21 +726,33 @@ export function rgb2hex(rgbIn) {
     return '#' + hex(rgb[1]) + hex(rgb[2]) + hex(rgb[3]);
 }
 
+export function updateCodeTheme(theme) {
+    const path = '/static/css/highlight/' + theme + '.css';
+    const $link = $('link.code_theme');
+    if (path !== $link.attr('href')) {
+        changeCss('code.hljs', 'visibility: hidden');
+        var xmlHTTP = new XMLHttpRequest();
+        xmlHTTP.open('GET', path, true);
+        xmlHTTP.onload = function onLoad() {
+            $link.attr('href', path);
+            if (isBrowserFirefox()) {
+                $link.one('load', () => {
+                    changeCss('code.hljs', 'visibility: visible');
+                });
+            } else {
+                changeCss('code.hljs', 'visibility: visible');
+            }
+        };
+        xmlHTTP.send();
+    }
+}
+
 export function placeCaretAtEnd(el) {
     el.focus();
-    if (typeof window.getSelection != 'undefined' && typeof document.createRange != 'undefined') {
-        var range = document.createRange();
-        range.selectNodeContents(el);
-        range.collapse(false);
-        var sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-    } else if (typeof document.body.createTextRange != 'undefined') {
-        var textRange = document.body.createTextRange();
-        textRange.moveToElementText(el);
-        textRange.collapse(false);
-        textRange.select();
-    }
+    el.selectionStart = el.value.length;
+    el.selectionEnd = el.value.length;
+
+    return;
 }
 
 export function getCaretPosition(el) {
@@ -705,22 +831,14 @@ export function isValidUsername(name) {
 }
 
 export function updateAddressBar(channelName) {
-    var teamURL = window.location.href.split('/channels')[0];
+    const teamURL = TeamStore.getCurrentTeamUrl();
     history.replaceState('data', '', teamURL + '/channels/' + channelName);
 }
 
 export function switchChannel(channel) {
-    AppDispatcher.handleViewAction({
-        type: ActionTypes.CLICK_CHANNEL,
-        name: channel.name,
-        id: channel.id
-    });
+    EventHelpers.emitChannelClickEvent(channel);
 
     updateAddressBar(channel.name);
-
-    AsyncClient.getChannels(true, true, true);
-    AsyncClient.getChannelExtraInfo(true);
-    AsyncClient.getPosts(channel.id);
 
     $('.inner__wrap').removeClass('move--right');
     $('.sidebar--left').removeClass('move--right');
@@ -858,6 +976,23 @@ export function getDisplayName(user) {
     return user.username;
 }
 
+export function displayUsername(userId) {
+    const user = UserStore.getProfile(userId);
+    const nameFormat = PreferenceStore.getPreference(Constants.Preferences.CATEGORY_DISPLAY_SETTINGS, 'name_format', {value: 'false'}).value;
+
+    let username = '';
+    if (nameFormat === 'nickname_full_name') {
+        username = user.nickname || getFullName(user);
+    } else if (nameFormat === 'full_name') {
+        username = getFullName(user);
+    }
+    if (!username.trim().length) {
+        username = user.username;
+    }
+
+    return username;
+}
+
 //IE10 does not set window.location.origin automatically so this must be called instead when using it
 export function getWindowLocationOrigin() {
     var windowLocationOrigin = window.location.origin;
@@ -950,7 +1085,7 @@ export function isBrowserIE() {
 }
 
 export function isBrowserEdge() {
-    return window.naviagtor && navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('edge') > -1;
+    return window.navigator && navigator.userAgent && navigator.userAgent.toLowerCase().indexOf('edge') > -1;
 }
 
 export function getDirectChannelName(id, otherId) {
@@ -1046,4 +1181,47 @@ export function openDirectChannelToUser(user, successCb, errorCb) {
             }
         );
     }
+}
+
+// Use when sorting multiple channels or teams by their `display_name` field
+export function sortByDisplayName(a, b) {
+    let aDisplayName = '';
+    let bDisplayName = '';
+
+    if (a && a.display_name) {
+        aDisplayName = a.display_name.toLowerCase();
+    }
+    if (b && b.display_name) {
+        bDisplayName = b.display_name.toLowerCase();
+    }
+
+    if (aDisplayName < bDisplayName) {
+        return -1;
+    }
+    if (aDisplayName > bDisplayName) {
+        return 1;
+    }
+    return 0;
+}
+
+export function getChannelTerm(channelType) {
+    let channelTerm = 'Channel';
+    if (channelType === Constants.PRIVATE_CHANNEL) {
+        channelTerm = 'Group';
+    }
+
+    return channelTerm;
+}
+
+export function getPostTerm(post) {
+    let postTerm = 'Post';
+    if (post.root_id) {
+        postTerm = 'Comment';
+    }
+
+    return postTerm;
+}
+
+export function isFeatureEnabled(feature) {
+    return PreferenceStore.getPreference(Constants.Preferences.CATEGORY_ADVANCED_SETTINGS, Constants.FeatureTogglePrefix + feature.label, {value: 'false'}).value === 'true';
 }

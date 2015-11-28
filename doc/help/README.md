@@ -1,12 +1,18 @@
-# Help
+## Help
 
-The help section of the Mattermost documentation is intended for use by end users learning about the Mattermost concepts, usage, terminology and user interface.
+- Getting Started
+   - [Sign-in](Sign-in.md)
 
-_Note: Help documentation is a work-in-progress. Community contributions highly welcome. Please see [guidelines for contributing](https://forum.mattermost.org/t/help-improve-mattermost-documentation/194)._
-
-## Team Site Main Menu 
-
-You can access the **Team Site Main Menu** by clicking on the three vertical dots at the top of the left sidebar in a team site. Here we describe the various options available from the menu: 
-
-- [Manage Members](Manage-Members.md)
-
+- User Interface
+   - Main Menu
+     - [Team Settings ](https://github.com/mattermost/platform/blob/help-docs-update/doc/help/Team-Settings.md)
+        - [General Settings](https://github.com/mattermost/platform/blob/help-docs-update/doc/help/Team-Settings.md#general) 
+        - [Slack Import](https://github.com/mattermost/platform/blob/help-docs-update/doc/help/Team-Settings.md#import-from-slack-beta)
+     - [Manage Members](Manage-Members.md)
+   - Messaging
+     - [Mattermost Markdown Formatting](help/Markdown.md)
+   - [Search](Search.md)
+     
+- System Console
+  - Team
+    - [Team Statistics](system-console/Team-Statistics.md)

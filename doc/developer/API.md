@@ -12,7 +12,7 @@ Incoming webhooks allow external applications to post messages into Mattermost c
 
 In addition to supporting Slack's incoming webhook formatting, Mattermost webhooks offer full support of industry-standard markdown formatting, including headings, tables and in-line images. 
 
-### [Outgoing Webhooks (in Mattermost v1.2)](https://github.com/mattermost/platform/blob/master/doc/integrations/webhooks/Outgoing-Webhooks.md) 
+### [Outgoing Webhooks](https://github.com/mattermost/platform/blob/master/doc/integrations/webhooks/Outgoing-Webhooks.md) 
 
 Outgoing webhooks allow external applications to receive webhook events from events happening within Mattermost channels and private groups via JSON payloads via HTTP POST requests sent to incoming webhook URLs defined by your applications. 
 
@@ -33,3 +33,15 @@ Mattermost drivers offer access to the Mattermost web service API in different l
 ### [Golang Driver](https://github.com/mattermost/platform/blob/master/model/client.go)
 
 [client.go](https://github.com/mattermost/platform/blob/master/model/client.go) - This is a RESTful driver connecting with the Golang-based webservice of Mattermost and is used by unit tests. 
+
+## Building API Integration 
+
+If you're building a deep integration with Mattermost, for example a mobile native client, and there is a driver available to support the programming language you are using, it's best to use the driver available to access the [Mattermost Web Service APIs](API-Web-Service.md).
+
+If no driver is available for the programming language of your choice, you can view the [Golang Driver](https://github.com/mattermost/platform/blob/master/model/client.go) source code to understand how it exercises the Web Service API. You can also learn more by reviewing open source projects that use the Web Service API, like [matterircd](https://github.com/42wim/matterircd).
+
+There are a wide range of [installation guides](www.mattermost.org/installation/) for setting up your own Mattermost server on which to develop and test your integrations. 
+
+
+
+

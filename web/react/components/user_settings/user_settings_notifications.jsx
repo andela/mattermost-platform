@@ -1,17 +1,18 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var UserStore = require('../../stores/user_store.jsx');
-var SettingItemMin = require('../setting_item_min.jsx');
-var SettingItemMax = require('../setting_item_max.jsx');
-var client = require('../../utils/client.jsx');
-var AsyncClient = require('../../utils/async_client.jsx');
-var utils = require('../../utils/utils.jsx');
-var assign = require('object-assign');
+import SettingItemMin from '../setting_item_min.jsx';
+import SettingItemMax from '../setting_item_max.jsx';
+
+import UserStore from '../../stores/user_store.jsx';
+
+import * as Client from '../../utils/client.jsx';
+import * as AsyncClient from '../../utils/async_client.jsx';
+import * as Utils from '../../utils/utils.jsx';
 
 function getNotificationsStateFromStores() {
     var user = UserStore.getCurrentUser();
-    var soundNeeded = !utils.isBrowserFirefox();
+    var soundNeeded = !Utils.isBrowserFirefox();
 
     var sound = 'true';
     if (user.notify_props && user.notify_props.desktop_sound) {
@@ -37,18 +38,18 @@ function getNotificationsStateFromStores() {
         if (user.notify_props.mention_keys) {
             var keys = user.notify_props.mention_keys.split(',');
 
-            if (keys.indexOf(user.username) !== -1) {
+            if (keys.indexOf(user.username) === -1) {
+                usernameKey = false;
+            } else {
                 usernameKey = true;
                 keys.splice(keys.indexOf(user.username), 1);
-            } else {
-                usernameKey = false;
             }
 
-            if (keys.indexOf('@' + user.username) !== -1) {
+            if (keys.indexOf('@' + user.username) === -1) {
+                mentionKey = false;
+            } else {
                 mentionKey = true;
                 keys.splice(keys.indexOf('@' + user.username), 1);
-            } else {
-                mentionKey = false;
             }
 
             customKeys = keys.join(',');
@@ -77,7 +78,6 @@ export default class NotificationsTab extends React.Component {
         super(props);
 
         this.handleSubmit = this.handleSubmit.bind(this);
-        this.handleClose = this.handleClose.bind(this);
         this.updateSection = this.updateSection.bind(this);
         this.onListenerChange = this.onListenerChange.bind(this);
         this.handleNotifyRadio = this.handleNotifyRadio.bind(this);
@@ -118,7 +118,7 @@ export default class NotificationsTab extends React.Component {
         data.all = this.state.allKey.toString();
         data.channel = this.state.channelKey.toString();
 
-        client.updateUserNotifyProps(data,
+        Client.updateUserNotifyProps(data,
             function success() {
                 this.props.updateSection('');
                 AsyncClient.getMe();
@@ -128,31 +128,19 @@ export default class NotificationsTab extends React.Component {
             }.bind(this)
         );
     }
-    handleClose() {
-        $(ReactDOM.findDOMNode(this)).find('.form-control').each(function clearField() {
-            this.value = '';
-        });
-
-        this.setState(assign({}, getNotificationsStateFromStores(), {serverError: null}));
-
-        this.props.updateTab('general');
-    }
     updateSection(section) {
         this.setState(getNotificationsStateFromStores());
         this.props.updateSection(section);
     }
     componentDidMount() {
         UserStore.addChangeListener(this.onListenerChange);
-        $('#user_settings').on('hidden.bs.modal', this.handleClose);
     }
     componentWillUnmount() {
         UserStore.removeChangeListener(this.onListenerChange);
-        $('#user_settings').off('hidden.bs.modal', this.handleClose);
-        this.props.updateSection('');
     }
     onListenerChange() {
         var newState = getNotificationsStateFromStores();
-        if (!utils.areStatesEqual(newState, this.state)) {
+        if (!Utils.areObjectsEqual(newState, this.state)) {
             this.setState(newState);
         }
     }
@@ -524,7 +512,7 @@ export default class NotificationsTab extends React.Component {
             }.bind(this);
             inputs.push(
                 <div key='userNotificationAllOption'>
-                    <div className='checkbox'>
+                    <div className='checkbox hidden'>
                         <label>
                             <input
                                 type='checkbox'
@@ -602,9 +590,11 @@ export default class NotificationsTab extends React.Component {
             if (this.state.mentionKey) {
                 keys.push('@' + user.username);
             }
-            if (this.state.allKey) {
-                keys.push('@all');
-            }
+
+            // if (this.state.allKey) {
+            //     keys.push('@all');
+            // }
+
             if (this.state.channelKey) {
                 keys.push('@channel');
             }
@@ -644,15 +634,19 @@ export default class NotificationsTab extends React.Component {
                         className='close'
                         data-dismiss='modal'
                         aria-label='Close'
+                        onClick={this.props.closeModal}
                     >
-                        <span aria-hidden='true'>&times;</span>
+                        <span aria-hidden='true'>{'×'}</span>
                     </button>
                     <h4
                         className='modal-title'
                         ref='title'
                     >
-                        <i className='modal-back'></i>
-                        Notifications
+                        <i
+                            className='modal-back'
+                            onClick={this.props.collapseModal}
+                        />
+                        {'Notification Settings'}
                     </h4>
                 </div>
                 <div
@@ -686,5 +680,7 @@ NotificationsTab.propTypes = {
     updateSection: React.PropTypes.func,
     updateTab: React.PropTypes.func,
     activeSection: React.PropTypes.string,
-    activeTab: React.PropTypes.string
+    activeTab: React.PropTypes.string,
+    closeModal: React.PropTypes.func.isRequired,
+    collapseModal: React.PropTypes.func.isRequired
 };

@@ -1,14 +1,16 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var ChannelStore = require('../stores/channel_store.jsx');
-var UserProfile = require('./user_profile.jsx');
-var UserStore = require('../stores/user_store.jsx');
-var TextFormatting = require('../utils/text_formatting.jsx');
-var utils = require('../utils/utils.jsx');
-var FileAttachmentList = require('./file_attachment_list.jsx');
-var twemoji = require('twemoji');
-var Constants = require('../utils/constants.jsx');
+import ChannelStore from '../stores/channel_store.jsx';
+import UserProfile from './user_profile.jsx';
+import UserStore from '../stores/user_store.jsx';
+import * as TextFormatting from '../utils/text_formatting.jsx';
+import * as utils from '../utils/utils.jsx';
+import FileAttachmentList from './file_attachment_list.jsx';
+import twemoji from 'twemoji';
+import Constants from '../utils/constants.jsx';
+import PostBodyAdditionalContent from './post_body_additional_content.jsx';
+import * as EventHelpers from '../dispatcher/event_helpers.jsx';
 
 export default class RhsRootPost extends React.Component {
     constructor(props) {
@@ -25,7 +27,7 @@ export default class RhsRootPost extends React.Component {
         this.parseEmojis();
     }
     shouldComponentUpdate(nextProps) {
-        if (!utils.areStatesEqual(nextProps.post, this.props.post)) {
+        if (!utils.areObjectsEqual(nextProps.post, this.props.post)) {
             return true;
         }
 
@@ -36,7 +38,9 @@ export default class RhsRootPost extends React.Component {
     }
     render() {
         var post = this.props.post;
-        var isOwner = UserStore.getCurrentId() === post.user_id;
+        var currentUser = UserStore.getCurrentUser();
+        var isOwner = currentUser.id === post.user_id;
+        var isAdmin = utils.isAdmin(currentUser.roles);
         var timestamp = UserStore.getProfile(post.user_id).update_at;
         var channel = ChannelStore.get(post.channel_id);
 
@@ -59,12 +63,55 @@ export default class RhsRootPost extends React.Component {
             }
         }
 
-        var ownerOptions;
+        var dropdownContents = [];
+
         if (isOwner) {
-            ownerOptions = (
-                <div>
-                    <a href='#'
-                        className='dropdown-toggle theme'
+            dropdownContents.push(
+                <li
+                    key='rhs-root-edit'
+                    role='presentation'
+                >
+                    <a
+                        href='#'
+                        role='menuitem'
+                        data-toggle='modal'
+                        data-target='#edit_post'
+                        data-refocusid='#reply_textbox'
+                        data-title={type}
+                        data-message={post.message}
+                        data-postid={post.id}
+                        data-channelid={post.channel_id}
+                    >
+                        {'Edit'}
+                    </a>
+                </li>
+            );
+        }
+
+        if (isOwner || isAdmin) {
+            dropdownContents.push(
+                <li
+                    key='rhs-root-delete'
+                    role='presentation'
+                >
+                    <a
+                        href='#'
+                        role='menuitem'
+                        onClick={() => EventHelpers.showDeletePostModal(post, this.props.commentCount)}
+                    >
+                        {'Delete'}
+                    </a>
+                </li>
+            );
+        }
+
+        var rootOptions = '';
+        if (dropdownContents.length > 0) {
+            rootOptions = (
+                <div className='dropdown'>
+                    <a
+                        href='#'
+                        className='post__dropdown dropdown-toggle'
                         type='button'
                         data-toggle='dropdown'
                         aria-expanded='false'
@@ -73,35 +120,7 @@ export default class RhsRootPost extends React.Component {
                         className='dropdown-menu'
                         role='menu'
                     >
-                        <li role='presentation'>
-                            <a
-                                href='#'
-                                role='menuitem'
-                                data-toggle='modal'
-                                data-target='#edit_post'
-                                data-refocusid='#reply_textbox'
-                                data-title={type}
-                                data-message={post.message}
-                                data-postid={post.id}
-                                data-channelid={post.channel_id}
-                            >
-                                Edit
-                            </a>
-                        </li>
-                        <li role='presentation'>
-                            <a
-                                href='#'
-                                role='menuitem'
-                                data-toggle='modal'
-                                data-target='#delete_post'
-                                data-title={type}
-                                data-postid={post.id}
-                                data-channelid={post.channel_id}
-                                data-comments={this.props.commentCount}
-                            >
-                                Delete
-                            </a>
-                        </li>
+                        {dropdownContents}
                     </ul>
                 </div>
             );
@@ -132,7 +151,7 @@ export default class RhsRootPost extends React.Component {
                 );
             }
 
-            botIndicator = <li className='post-header-col post-header__name bot-indicator'>{'BOT'}</li>;
+            botIndicator = <li className='col col__name bot-indicator'>{'BOT'}</li>;
         }
 
         let src = '/api/v1/users/' + post.user_id + '/image?time=' + timestamp + '&' + utils.getSessionIndex();
@@ -143,44 +162,47 @@ export default class RhsRootPost extends React.Component {
         }
 
         const profilePic = (
-            <div className='post-profile-img__container'>
-                <img
-                    className='post-profile-img'
-                    src={src}
-                    height='36'
-                    width='36'
-                />
-            </div>
+            <img
+                className='post-profile-img'
+                src={src}
+                height='36'
+                width='36'
+            />
         );
 
         return (
             <div className={'post post--root ' + currentUserCss}>
                 <div className='post-right-channel__name'>{channelName}</div>
-                <div className='post-profile-img__container'>
-                    {profilePic}
-                </div>
                 <div className='post__content'>
-                    <ul className='post-header'>
-                        <li className='post-header-col'><strong>{userProfile}</strong></li>
-                        {botIndicator}
-                        <li className='post-header-col'>
-                            <time className='post-profile-time'>
-                                {utils.displayCommentDateTime(post.create_at)}
-                            </time>
-                        </li>
-                        <li className='post-header-col post-header__reply'>
-                            <div className='dropdown'>
-                                {ownerOptions}
-                            </div>
-                        </li>
-                    </ul>
-                    <div className='post-body'>
-                        <div
-                            ref='message_holder'
-                            onClick={TextFormatting.handleClick}
-                            dangerouslySetInnerHTML={{__html: TextFormatting.formatText(post.message)}}
-                        />
-                        {fileAttachment}
+                    <div className='post__img'>
+                        {profilePic}
+                    </div>
+                    <div>
+                        <ul className='post__header'>
+                            <li className='col__name'>{userProfile}</li>
+                            {botIndicator}
+                            <li className='col'>
+                                <time className='post__time'>
+                                    {utils.displayCommentDateTime(post.create_at)}
+                                </time>
+                            </li>
+                            <li className='col col__reply'>
+                                <div className='dropdown'>
+                                    {rootOptions}
+                                </div>
+                            </li>
+                        </ul>
+                        <div className='post__body'>
+                            <div
+                                ref='message_holder'
+                                onClick={TextFormatting.handleClick}
+                                dangerouslySetInnerHTML={{__html: TextFormatting.formatText(post.message)}}
+                            />
+                            <PostBodyAdditionalContent
+                                post={post}
+                            />
+                            {fileAttachment}
+                        </div>
                     </div>
                 </div>
                 <hr />

@@ -46,7 +46,7 @@ func (s SqlAuditStore) Save(audit *model.Audit) StoreChannel {
 
 		if err := s.GetMaster().Insert(audit); err != nil {
 			result.Err = model.NewAppError("SqlAuditStore.Save",
-				"We encounted an error saving the audit", "user_id="+
+				"We encountered an error saving the audit", "user_id="+
 					audit.UserId+" action="+audit.Action)
 		}
 
@@ -75,9 +75,28 @@ func (s SqlAuditStore) Get(user_id string, limit int) StoreChannel {
 		var audits model.Audits
 		if _, err := s.GetReplica().Select(&audits, "SELECT * FROM Audits WHERE UserId = :user_id ORDER BY CreateAt DESC LIMIT :limit",
 			map[string]interface{}{"user_id": user_id, "limit": limit}); err != nil {
-			result.Err = model.NewAppError("SqlAuditStore.Get", "We encounted an error finding the audits", "user_id="+user_id)
+			result.Err = model.NewAppError("SqlAuditStore.Get", "We encountered an error finding the audits", "user_id="+user_id)
 		} else {
 			result.Data = audits
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlAuditStore) PermanentDeleteByUser(userId string) StoreChannel {
+
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		if _, err := s.GetMaster().Exec("DELETE FROM Audits WHERE UserId = :userId",
+			map[string]interface{}{"userId": userId}); err != nil {
+			result.Err = model.NewAppError("SqlAuditStore.Delete", "We encountered an error deleting the audits", "user_id="+userId)
 		}
 
 		storeChannel <- result

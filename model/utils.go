@@ -5,17 +5,19 @@ package model
 
 import (
 	"bytes"
-	"code.google.com/p/go-uuid/uuid"
 	"encoding/base32"
 	"encoding/json"
 	"fmt"
+	"github.com/pborman/uuid"
 	"io"
 	"net/mail"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
 )
 
+type StringInterface map[string]interface{}
 type StringMap map[string]string
 type StringArray []string
 type EncryptStringMap map[string]string
@@ -51,7 +53,7 @@ func AppErrorFromJson(data io.Reader) *AppError {
 	if err == nil {
 		return &er
 	} else {
-		return nil
+		return NewAppError("AppErrorFromJson", "could not decode", err.Error())
 	}
 }
 
@@ -119,6 +121,25 @@ func ArrayFromJson(data io.Reader) []string {
 	var objmap []string
 	if err := decoder.Decode(&objmap); err != nil {
 		return make([]string, 0)
+	} else {
+		return objmap
+	}
+}
+
+func StringInterfaceToJson(objmap map[string]interface{}) string {
+	if b, err := json.Marshal(objmap); err != nil {
+		return ""
+	} else {
+		return string(b)
+	}
+}
+
+func StringInterfaceFromJson(data io.Reader) map[string]interface{} {
+	decoder := json.NewDecoder(data)
+
+	var objmap map[string]interface{}
+	if err := decoder.Decode(&objmap); err != nil {
+		return make(map[string]interface{})
 	} else {
 		return objmap
 	}
@@ -241,8 +262,8 @@ func Etag(parts ...interface{}) string {
 }
 
 var validHashtag = regexp.MustCompile(`^(#[A-Za-z]+[A-Za-z0-9_\-]*[A-Za-z0-9])$`)
-var puncStart = regexp.MustCompile(`^[.,()&$!\[\]{}"':;\\]+`)
-var puncEnd = regexp.MustCompile(`[.,()&$#!\[\]{}"';\\]+$`)
+var puncStart = regexp.MustCompile(`^[.,()&$!\[\]{}':;\\]+`)
+var puncEnd = regexp.MustCompile(`[.,()&$#!\[\]{}';\\]+$`)
 
 func ParseHashtags(text string) (string, string) {
 	words := strings.Fields(text)
@@ -301,3 +322,15 @@ var UrlRegex = regexp.MustCompile(`^((?:[a-z]+:\/\/)?(?:(?:[a-z0-9\-]+\.)+(?:[a-
 var PartialUrlRegex = regexp.MustCompile(`/([A-Za-z0-9]{26})/([A-Za-z0-9]{26})/((?:[A-Za-z0-9]{26})?.+(?:\.[A-Za-z0-9]{3,})?)`)
 
 var SplitRunes = map[rune]bool{',': true, ' ': true, '.': true, '!': true, '?': true, ':': true, ';': true, '\n': true, '<': true, '>': true, '(': true, ')': true, '{': true, '}': true, '[': true, ']': true, '+': true, '/': true, '\\': true}
+
+func IsValidHttpUrl(rawUrl string) bool {
+	if strings.Index(rawUrl, "http://") != 0 && strings.Index(rawUrl, "https://") != 0 {
+		return false
+	}
+
+	if _, err := url.ParseRequestURI(rawUrl); err != nil {
+		return false
+	}
+
+	return true
+}

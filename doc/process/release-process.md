@@ -43,12 +43,12 @@ This is a working document that will update as our process evolves.
 - (Team) Select "Top Contributor" for the release from external contributions to be mentioned in release announcement
 - (Marketing) Decides announce date (discuss in meeting)
 - (Ops) Post Announce Date in Release channel + update the channel header to reflect date
-- (Marketing) Communicates checklist of items needed by specific dates to write the blog post announce (eg screenshots, GIFs, documentation) and begins to write the blog post, tweet, and email for the release announcement
+- (Marketing) Communicates checklist of items needed by specific dates to write the blog post announce (e.g. screenshots, GIFs, documentation) and begins to write the blog post, tweet, and email for the release announcement
 - (PM) Works with Ops to check the Quality Gate for feature complete
 - (PM) Communicate to team the plan for next release
 - (Stand-up) Each team member discusses worst bug
 
-### - (5 weekdays before release date) Code Compete and Release Candidate Cut 
+### - (5 weekdays before release date) Code Complete and Release Candidate Cut 
 - (Team) Meets to discuss release at 10am PST 
   - (PM) Each area changed in latest release is assigned a PM owner to lead testing
   - (Ops) Walks through each item of the **Code Complete and Release Candidate Cut** checklist

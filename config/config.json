@@ -5,8 +5,8 @@
         "SegmentDeveloperKey": "",
         "GoogleDeveloperKey": "",
         "EnableOAuthServiceProvider": false,
-        "EnableIncomingWebhooks": true,
-        "EnableOutgoingWebhooks": true,
+        "EnableIncomingWebhooks": false,
+        "EnableOutgoingWebhooks": false,
         "EnablePostUsernameOverride": false,
         "EnablePostIconOverride": false,
         "EnableTesting": false,
@@ -18,7 +18,8 @@
         "EnableTeamCreation": true,
         "EnableUserCreation": true,
         "RestrictCreationToDomains": "",
-        "RestrictTeamNames": true
+        "RestrictTeamNames": true,
+        "EnableTeamListing": false
     },
     "SqlSettings": {
         "DriverName": "mysql",

@@ -1,15 +1,16 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var UserStore = require('../../stores/user_store.jsx');
-var ErrorStore = require('../../stores/error_store.jsx');
-var SettingItemMin = require('../setting_item_min.jsx');
-var SettingItemMax = require('../setting_item_max.jsx');
-var SettingPicture = require('../setting_picture.jsx');
-var client = require('../../utils/client.jsx');
-var AsyncClient = require('../../utils/async_client.jsx');
-var utils = require('../../utils/utils.jsx');
-var assign = require('object-assign');
+import SettingItemMin from '../setting_item_min.jsx';
+import SettingItemMax from '../setting_item_max.jsx';
+import SettingPicture from '../setting_picture.jsx';
+
+import UserStore from '../../stores/user_store.jsx';
+import ErrorStore from '../../stores/error_store.jsx';
+
+import * as Client from '../../utils/client.jsx';
+import * as AsyncClient from '../../utils/async_client.jsx';
+import * as Utils from '../../utils/utils.jsx';
 
 export default class UserSettingsGeneralTab extends React.Component {
     constructor(props) {
@@ -32,18 +33,15 @@ export default class UserSettingsGeneralTab extends React.Component {
         this.updatePicture = this.updatePicture.bind(this);
         this.updateSection = this.updateSection.bind(this);
 
-        this.handleClose = this.handleClose.bind(this);
-        this.setupInitialState = this.setupInitialState.bind(this);
-
         this.state = this.setupInitialState(props);
     }
     submitUsername(e) {
         e.preventDefault();
 
-        var user = this.props.user;
-        var username = this.state.username.trim().toLowerCase();
+        const user = Object.assign({}, this.props.user);
+        const username = this.state.username.trim().toLowerCase();
 
-        var usernameError = utils.isValidUsername(username);
+        const usernameError = Utils.isValidUsername(username);
         if (usernameError === 'Cannot use a reserved word as a username.') {
             this.setState({clientError: 'This username is reserved, please choose a new one.'});
             return;
@@ -53,7 +51,7 @@ export default class UserSettingsGeneralTab extends React.Component {
         }
 
         if (user.username === username) {
-            this.setState({clientError: 'You must submit a new username'});
+            this.setState({clientError: 'You must submit a new username.', emailError: '', serverError: ''});
             return;
         }
 
@@ -64,11 +62,11 @@ export default class UserSettingsGeneralTab extends React.Component {
     submitNickname(e) {
         e.preventDefault();
 
-        var user = UserStore.getCurrentUser();
-        var nickname = this.state.nickname.trim();
+        const user = Object.assign({}, this.props.user);
+        const nickname = this.state.nickname.trim();
 
         if (user.nickname === nickname) {
-            this.setState({clientError: 'You must submit a new nickname'});
+            this.setState({clientError: 'You must submit a new nickname.', emailError: '', serverError: ''});
             return;
         }
 
@@ -79,12 +77,12 @@ export default class UserSettingsGeneralTab extends React.Component {
     submitName(e) {
         e.preventDefault();
 
-        var user = UserStore.getCurrentUser();
-        var firstName = this.state.firstName.trim();
-        var lastName = this.state.lastName.trim();
+        const user = Object.assign({}, this.props.user);
+        const firstName = this.state.firstName.trim();
+        const lastName = this.state.lastName.trim();
 
         if (user.first_name === firstName && user.last_name === lastName) {
-            this.setState({clientError: 'You must submit a new first or last name'});
+            this.setState({clientError: 'You must submit a new first or last name.', emailError: '', serverError: ''});
             return;
         }
 
@@ -96,21 +94,21 @@ export default class UserSettingsGeneralTab extends React.Component {
     submitEmail(e) {
         e.preventDefault();
 
-        var user = UserStore.getCurrentUser();
-        var email = this.state.email.trim().toLowerCase();
-        var confirmEmail = this.state.confirmEmail.trim().toLowerCase();
+        const user = Object.assign({}, this.props.user);
+        const email = this.state.email.trim().toLowerCase();
+        const confirmEmail = this.state.confirmEmail.trim().toLowerCase();
 
         if (user.email === email) {
             return;
         }
 
-        if (email === '' || !utils.isEmail(email)) {
-            this.setState({emailError: 'Please enter a valid email address'});
+        if (email === '' || !Utils.isEmail(email)) {
+            this.setState({emailError: 'Please enter a valid email address.', clientError: '', serverError: ''});
             return;
         }
 
         if (email !== confirmEmail) {
-            this.setState({emailError: 'The new emails you entered do not match'});
+            this.setState({emailError: 'The new emails you entered do not match.', clientError: '', serverError: ''});
             return;
         }
 
@@ -118,7 +116,7 @@ export default class UserSettingsGeneralTab extends React.Component {
         this.submitUser(user, true);
     }
     submitUser(user, emailUpdated) {
-        client.updateUser(user,
+        Client.updateUser(user,
             () => {
                 this.updateSection('');
                 AsyncClient.getMe();
@@ -131,13 +129,13 @@ export default class UserSettingsGeneralTab extends React.Component {
                 }
             },
             (err) => {
-                var state = this.setupInitialState(this.props);
+                let serverError;
                 if (err.message) {
-                    state.serverError = err.message;
+                    serverError = err.message;
                 } else {
-                    state.serverError = err;
+                    serverError = err;
                 }
-                this.setState(state);
+                this.setState({serverError, emailError: '', clientError: ''});
             }
         );
     }
@@ -152,10 +150,10 @@ export default class UserSettingsGeneralTab extends React.Component {
             return;
         }
 
-        var picture = this.state.picture;
+        const picture = this.state.picture;
 
         if (picture.type !== 'image/jpeg' && picture.type !== 'image/png') {
-            this.setState({clientError: 'Only JPG or PNG images may be used for profile pictures'});
+            this.setState({clientError: 'Only JPG or PNG images may be used for profile pictures.'});
             return;
         }
 
@@ -163,17 +161,17 @@ export default class UserSettingsGeneralTab extends React.Component {
         formData.append('image', picture, picture.name);
         this.setState({loadingPicture: true});
 
-        client.uploadProfileImage(formData,
-            function imageUploadSuccess() {
+        Client.uploadProfileImage(formData,
+            () => {
                 this.submitActive = false;
                 AsyncClient.getMe();
                 window.location.reload();
-            }.bind(this),
-            function imageUploadFailure(err) {
+            },
+            (err) => {
                 var state = this.setupInitialState(this.props);
                 state.serverError = err.message;
                 this.setState(state);
-            }.bind(this)
+            }
         );
     }
     updateUsername(e) {
@@ -206,48 +204,34 @@ export default class UserSettingsGeneralTab extends React.Component {
     }
     updateSection(section) {
         const emailChangeInProgress = this.state.emailChangeInProgress;
-        this.setState(assign({}, this.setupInitialState(this.props), {emailChangeInProgress: emailChangeInProgress, clientError: '', serverError: '', emailError: ''}));
+        this.setState(Object.assign({}, this.setupInitialState(this.props), {emailChangeInProgress, clientError: '', serverError: '', emailError: ''}));
         this.submitActive = false;
         this.props.updateSection(section);
     }
-    handleClose() {
-        $(ReactDOM.findDOMNode(this)).find('.form-control').each(function clearForms() {
-            this.value = '';
-        });
-
-        this.setState(assign({}, this.setupInitialState(this.props), {clientError: null, serverError: null, emailError: null}));
-        this.props.updateSection('');
-    }
-    componentDidMount() {
-        $('#user_settings').on('hidden.bs.modal', this.handleClose);
-    }
-    componentWillUnmount() {
-        $('#user_settings').off('hidden.bs.modal', this.handleClose);
-    }
     setupInitialState(props) {
-        var user = props.user;
+        const user = props.user;
 
         return {username: user.username, firstName: user.first_name, lastName: user.last_name, nickname: user.nickname,
                         email: user.email, confirmEmail: '', picture: null, loadingPicture: false, emailChangeInProgress: false};
     }
     render() {
-        var user = this.props.user;
+        const user = this.props.user;
 
-        var clientError = null;
+        let clientError = null;
         if (this.state.clientError) {
             clientError = this.state.clientError;
         }
-        var serverError = null;
+        let serverError = null;
         if (this.state.serverError) {
             serverError = this.state.serverError;
         }
-        var emailError = null;
+        let emailError = null;
         if (this.state.emailError) {
             emailError = this.state.emailError;
         }
 
-        var nameSection;
-        var inputs = [];
+        let nameSection;
+        const inputs = [];
 
         if (this.props.activeSection === 'name') {
             inputs.push(
@@ -313,15 +297,15 @@ export default class UserSettingsGeneralTab extends React.Component {
                     submit={this.submitName}
                     server_error={serverError}
                     client_error={clientError}
-                    updateSection={function clearSection(e) {
+                    updateSection={(e) => {
                         this.updateSection('');
                         e.preventDefault();
-                    }.bind(this)}
+                    }}
                     extraInfo={extraInfo}
                 />
             );
         } else {
-            var fullName = '';
+            let fullName = '';
 
             if (user.first_name && user.last_name) {
                 fullName = user.first_name + ' ' + user.last_name;
@@ -335,17 +319,17 @@ export default class UserSettingsGeneralTab extends React.Component {
                 <SettingItemMin
                     title='Full Name'
                     describe={fullName}
-                    updateSection={function updateNameSection() {
+                    updateSection={() => {
                         this.updateSection('name');
-                    }.bind(this)}
+                    }}
                 />
             );
         }
 
-        var nicknameSection;
+        let nicknameSection;
         if (this.props.activeSection === 'nickname') {
             let nicknameLabel = 'Nickname';
-            if (utils.isMobile()) {
+            if (Utils.isMobile()) {
                 nicknameLabel = '';
             }
 
@@ -379,10 +363,10 @@ export default class UserSettingsGeneralTab extends React.Component {
                     submit={this.submitNickname}
                     server_error={serverError}
                     client_error={clientError}
-                    updateSection={function clearSection(e) {
+                    updateSection={(e) => {
                         this.updateSection('');
                         e.preventDefault();
-                    }.bind(this)}
+                    }}
                     extraInfo={extraInfo}
                 />
             );
@@ -391,17 +375,17 @@ export default class UserSettingsGeneralTab extends React.Component {
                 <SettingItemMin
                     title='Nickname'
                     describe={UserStore.getCurrentUser().nickname}
-                    updateSection={function updateNicknameSection() {
+                    updateSection={() => {
                         this.updateSection('nickname');
-                    }.bind(this)}
+                    }}
                 />
             );
         }
 
-        var usernameSection;
+        let usernameSection;
         if (this.props.activeSection === 'username') {
             let usernameLabel = 'Username';
-            if (utils.isMobile()) {
+            if (Utils.isMobile()) {
                 usernameLabel = '';
             }
 
@@ -431,10 +415,10 @@ export default class UserSettingsGeneralTab extends React.Component {
                     submit={this.submitUsername}
                     server_error={serverError}
                     client_error={clientError}
-                    updateSection={function clearSection(e) {
+                    updateSection={(e) => {
                         this.updateSection('');
                         e.preventDefault();
-                    }.bind(this)}
+                    }}
                     extraInfo={extraInfo}
                 />
             );
@@ -443,22 +427,23 @@ export default class UserSettingsGeneralTab extends React.Component {
                 <SettingItemMin
                     title='Username'
                     describe={UserStore.getCurrentUser().username}
-                    updateSection={function updateUsernameSection() {
+                    updateSection={() => {
                         this.updateSection('username');
-                    }.bind(this)}
+                    }}
                 />
             );
         }
-        var emailSection;
+
+        let emailSection;
         if (this.props.activeSection === 'email') {
             const emailEnabled = global.window.mm_config.SendEmailNotifications === 'true';
             const emailVerificationEnabled = global.window.mm_config.RequireEmailVerification === 'true';
-            let helpText = 'Email is used for notifications, and requires verification if changed.';
+            let helpText = 'Email is used for sign-in, notifications, and password reset. Email requires verification if changed.';
 
             if (!emailEnabled) {
                 helpText = <div className='setting-list__hint text-danger'>{'Email has been disabled by your system administrator. No notification emails will be sent until it is enabled.'}</div>;
             } else if (!emailVerificationEnabled) {
-                helpText = 'Email is used for notifications.';
+                helpText = 'Email is used for sign-in, notifications, and password reset.';
             } else if (this.state.emailChangeInProgress) {
                 const newEmail = UserStore.getCurrentUser().email;
                 if (newEmail) {
@@ -466,89 +451,109 @@ export default class UserSettingsGeneralTab extends React.Component {
                 }
             }
 
-            inputs.push(
-                <div key='emailSetting'>
-                    <div className='form-group'>
-                        <label className='col-sm-5 control-label'>{'Primary Email'}</label>
-                        <div className='col-sm-7'>
-                            <input
-                                className='form-control'
-                                type='text'
-                                onChange={this.updateEmail}
-                                value={this.state.email}
-                            />
-                        </div>
-                    </div>
-                </div>
-            );
+            let submit = null;
 
-            inputs.push(
-                <div key='confirmEmailSetting'>
-                    <div className='form-group'>
-                        <label className='col-sm-5 control-label'>{'Confirm Email'}</label>
-                        <div className='col-sm-7'>
-                            <input
-                                className='form-control'
-                                type='text'
-                                onChange={this.updateConfirmEmail}
-                                value={this.state.confirmEmail}
-                            />
+            if (this.props.user.auth_service === '') {
+                inputs.push(
+                    <div key='emailSetting'>
+                        <div className='form-group'>
+                            <label className='col-sm-5 control-label'>{'Primary Email'}</label>
+                            <div className='col-sm-7'>
+                                <input
+                                    className='form-control'
+                                    type='text'
+                                    onChange={this.updateEmail}
+                                    value={this.state.email}
+                                />
+                            </div>
                         </div>
                     </div>
-                    {helpText}
-                </div>
-            );
+                );
+
+                inputs.push(
+                    <div key='confirmEmailSetting'>
+                        <div className='form-group'>
+                            <label className='col-sm-5 control-label'>{'Confirm Email'}</label>
+                            <div className='col-sm-7'>
+                                <input
+                                    className='form-control'
+                                    type='text'
+                                    onChange={this.updateConfirmEmail}
+                                    value={this.state.confirmEmail}
+                                />
+                            </div>
+                        </div>
+                        {helpText}
+                    </div>
+                );
+
+                submit = this.submitEmail;
+            } else {
+                inputs.push(
+                    <div
+                        key='oauthEmailInfo'
+                        className='form-group'
+                    >
+                        <div className='setting-list__hint'>{'Log in occurs through GitLab. Email cannot be updated.'}</div>
+                        {helpText}
+                    </div>
+                );
+            }
 
             emailSection = (
                 <SettingItemMax
                     title='Email'
                     inputs={inputs}
-                    submit={this.submitEmail}
+                    submit={submit}
                     server_error={serverError}
                     client_error={emailError}
-                    updateSection={function clearSection(e) {
+                    updateSection={(e) => {
                         this.updateSection('');
                         e.preventDefault();
-                    }.bind(this)}
+                    }}
                 />
             );
         } else {
             let describe = '';
-            if (this.state.emailChangeInProgress) {
-                const newEmail = UserStore.getCurrentUser().email;
-                if (newEmail) {
-                    describe = 'New Address: ' + newEmail + '\nCheck your email to verify the above address.';
+            if (this.props.user.auth_service === '') {
+                if (this.state.emailChangeInProgress) {
+                    const newEmail = UserStore.getCurrentUser().email;
+                    if (newEmail) {
+                        describe = 'New Address: ' + newEmail + '\nCheck your email to verify the above address.';
+                    } else {
+                        describe = 'Check your email to verify your new address';
+                    }
                 } else {
-                    describe = 'Check your email to verify your new address';
+                    describe = UserStore.getCurrentUser().email;
                 }
             } else {
-                describe = UserStore.getCurrentUser().email;
+                describe = 'Log in done through GitLab';
             }
 
             emailSection = (
                 <SettingItemMin
                     title='Email'
                     describe={describe}
-                    updateSection={function updateEmailSection() {
+                    updateSection={() => {
                         this.updateSection('email');
-                    }.bind(this)}
+                    }}
                 />
             );
         }
 
-        var pictureSection;
+        let pictureSection;
         if (this.props.activeSection === 'picture') {
             pictureSection = (
                 <SettingPicture
                     title='Profile Picture'
                     submit={this.submitPicture}
-                    src={'/api/v1/users/' + user.id + '/image?time=' + user.last_picture_update + '&' + utils.getSessionIndex()}
+                    src={'/api/v1/users/' + user.id + '/image?time=' + user.last_picture_update + '&' + Utils.getSessionIndex()}
                     server_error={serverError}
                     client_error={clientError}
-                    updateSection={function clearSection(e) {
+                    updateSection={(e) => {
                         this.updateSection('');
                         e.preventDefault();
-                    }.bind(this)}
+                    }}
                     picture={this.state.picture}
                     pictureChange={this.updatePicture}
                     submitActive={this.submitActive}
@@ -556,17 +561,17 @@ export default class UserSettingsGeneralTab extends React.Component {
                 />
             );
         } else {
-            var minMessage = 'Click \'Edit\' to upload an image.';
+            let minMessage = 'Click \'Edit\' to upload an image.';
             if (user.last_picture_update) {
-                minMessage = 'Image last updated ' + utils.displayDate(user.last_picture_update);
+                minMessage = 'Image last updated ' + Utils.displayDate(user.last_picture_update);
             }
             pictureSection = (
                 <SettingItemMin
                     title='Profile Picture'
                     describe={minMessage}
-                    updateSection={function updatePictureSection() {
+                    updateSection={() => {
                         this.updateSection('picture');
-                    }.bind(this)}
+                    }}
                 />
             );
         }
@@ -579,6 +584,7 @@ export default class UserSettingsGeneralTab extends React.Component {
                         className='close'
                         data-dismiss='modal'
                         aria-label='Close'
+                        onClick={this.props.closeModal}
                     >
                         <span aria-hidden='true'>{'×'}</span>
                     </button>
@@ -586,7 +592,10 @@ export default class UserSettingsGeneralTab extends React.Component {
                         className='modal-title'
                         ref='title'
                     >
-                        <i className='modal-back'></i>
+                        <i
+                            className='modal-back'
+                            onClick={this.props.collapseModal}
+                        />
                         {'General Settings'}
                     </h4>
                 </div>
@@ -610,8 +619,10 @@ export default class UserSettingsGeneralTab extends React.Component {
 }
 
 UserSettingsGeneralTab.propTypes = {
-    user: React.PropTypes.object,
-    updateSection: React.PropTypes.func,
-    updateTab: React.PropTypes.func,
-    activeSection: React.PropTypes.string
+    user: React.PropTypes.object.isRequired,
+    updateSection: React.PropTypes.func.isRequired,
+    updateTab: React.PropTypes.func.isRequired,
+    activeSection: React.PropTypes.string.isRequired,
+    closeModal: React.PropTypes.func.isRequired,
+    collapseModal: React.PropTypes.func.isRequired
 };

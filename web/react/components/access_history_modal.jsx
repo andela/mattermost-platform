@@ -1,11 +1,12 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var UserStore = require('../stores/user_store.jsx');
-var ChannelStore = require('../stores/channel_store.jsx');
-var AsyncClient = require('../utils/async_client.jsx');
-var LoadingScreen = require('./loading_screen.jsx');
-var Utils = require('../utils/utils.jsx');
+var Modal = ReactBootstrap.Modal;
+import UserStore from '../stores/user_store.jsx';
+import ChannelStore from '../stores/channel_store.jsx';
+import * as AsyncClient from '../utils/async_client.jsx';
+import LoadingScreen from './loading_screen.jsx';
+import * as Utils from '../utils/utils.jsx';
 
 export default class AccessHistoryModal extends React.Component {
     constructor(props) {
@@ -13,8 +14,8 @@ export default class AccessHistoryModal extends React.Component {
 
         this.onAuditChange = this.onAuditChange.bind(this);
         this.handleMoreInfo = this.handleMoreInfo.bind(this);
-        this.onHide = this.onHide.bind(this);
         this.onShow = this.onShow.bind(this);
+        this.onHide = this.onHide.bind(this);
         this.formatAuditInfo = this.formatAuditInfo.bind(this);
         this.handleRevokedSession = this.handleRevokedSession.bind(this);
 
@@ -30,23 +31,34 @@ export default class AccessHistoryModal extends React.Component {
     }
     onShow() {
         AsyncClient.getAudits();
+
+        $(ReactDOM.findDOMNode(this.refs.modalBody)).css('max-height', $(window).height() - 300);
+        if ($(window).width() > 768) {
+            $(ReactDOM.findDOMNode(this.refs.modalBody)).perfectScrollbar();
+        }
     }
     onHide() {
-        $('#user_settings').modal('show');
         this.setState({moreInfo: []});
+        this.props.onHide();
     }
     componentDidMount() {
         UserStore.addAuditsChangeListener(this.onAuditChange);
-        $(ReactDOM.findDOMNode(this.refs.modal)).on('shown.bs.modal', this.onShow);
 
-        $(ReactDOM.findDOMNode(this.refs.modal)).on('hidden.bs.modal', this.onHide);
+        if (this.props.show) {
+            this.onShow();
+        }
+    }
+    componentDidUpdate(prevProps) {
+        if (this.props.show && !prevProps.show) {
+            this.onShow();
+        }
     }
     componentWillUnmount() {
         UserStore.removeAuditsChangeListener(this.onAuditChange);
     }
     onAuditChange() {
         var newState = this.getStateFromStoresForAudits();
-        if (!Utils.areStatesEqual(newState.audits, this.state.audits)) {
+        if (!Utils.areObjectsEqual(newState.audits, this.state.audits)) {
             this.setState(newState);
         }
     }
@@ -94,7 +106,7 @@ export default class AccessHistoryModal extends React.Component {
             case '/channels/update_header':
                 currentAuditDesc = 'Updated the ' + channelName + ' channel/group header';
                 break;
-            default:
+            default: {
                 let userIdField = [];
                 let userId = '';
                 let username = '';
@@ -118,11 +130,12 @@ export default class AccessHistoryModal extends React.Component {
 
                 break;
             }
+            }
         } else if (currentActionURL.indexOf('/oauth') === 0) {
             const oauthInfo = currentAudit.extra_info.split(' ');
 
             switch (currentActionURL) {
-            case '/oauth/register':
+            case '/oauth/register': {
                 const clientIdField = oauthInfo[0].split('=');
 
                 if (clientIdField[0] === 'client_id') {
@@ -130,6 +143,7 @@ export default class AccessHistoryModal extends React.Component {
                 }
 
                 break;
+            }
             case '/oauth/allow':
                 if (oauthInfo[0] === 'attempt') {
                     currentAuditDesc = 'Attempted to allow a new OAuth service access';
@@ -190,7 +204,7 @@ export default class AccessHistoryModal extends React.Component {
                 }
 
                 break;
-            case '/users/update_roles':
+            case '/users/update_roles': {
                 const userRoles = userInfo[0].split('=')[1];
 
                 currentAuditDesc = 'Updated user role(s) to ';
@@ -201,7 +215,8 @@ export default class AccessHistoryModal extends React.Component {
                 }
 
                 break;
-            case '/users/update_active':
+            }
+            case '/users/update_active': {
                 const updateType = userInfo[0].split('=')[0];
                 const updateField = userInfo[0].split('=')[1];
 
@@ -228,6 +243,7 @@ export default class AccessHistoryModal extends React.Component {
                 }
 
                 break;
+            }
             case '/users/send_password_reset':
                 currentAuditDesc = 'Sent an email to ' + userInfo[0].split('=')[1] + ' to reset your password';
                 break;
@@ -380,43 +396,23 @@ export default class AccessHistoryModal extends React.Component {
         }
 
         return (
-            <div>
-                <div
-                    className='modal fade'
-                    ref='modal'
-                    id='access-history'
-                    tabIndex='-1'
-                    role='dialog'
-                    aria-hidden='true'
-                >
-                    <div className='modal-dialog modal-lg'>
-                        <div className='modal-content'>
-                            <div className='modal-header'>
-                                <button
-                                    type='button'
-                                    className='close'
-                                    data-dismiss='modal'
-                                    aria-label='Close'
-                                >
-                                    <span aria-hidden='true'>{'×'}</span>
-                                </button>
-                                <h4
-                                    className='modal-title'
-                                    id='myModalLabel'
-                                >
-                                    {'Access History'}
-                                </h4>
-                            </div>
-                            <div
-                                ref='modalBody'
-                                className='modal-body'
-                            >
-                                {content}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <Modal
+                show={this.props.show}
+                onHide={this.onHide}
+                bsSize='large'
+            >
+                <Modal.Header closeButton={true}>
+                    <Modal.Title>{'Access History'}</Modal.Title>
+                </Modal.Header>
+                <Modal.Body ref='modalBody'>
+                    {content}
+                </Modal.Body>
+            </Modal>
         );
     }
 }
+
+AccessHistoryModal.propTypes = {
+    show: React.PropTypes.bool.isRequired,
+    onHide: React.PropTypes.func.isRequired
+};

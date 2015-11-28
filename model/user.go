@@ -4,12 +4,13 @@
 package model
 
 import (
-	"code.google.com/p/go.crypto/bcrypt"
 	"encoding/json"
 	"fmt"
+	"golang.org/x/crypto/bcrypt"
 	"io"
 	"regexp"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -27,29 +28,29 @@ const (
 
 type User struct {
 	Id                 string    `json:"id"`
-	CreateAt           int64     `json:"create_at"`
-	UpdateAt           int64     `json:"update_at"`
+	CreateAt           int64     `json:"create_at,omitempty"`
+	UpdateAt           int64     `json:"update_at,omitempty"`
 	DeleteAt           int64     `json:"delete_at"`
 	TeamId             string    `json:"team_id"`
 	Username           string    `json:"username"`
-	Password           string    `json:"password"`
-	AuthData           string    `json:"auth_data"`
+	Password           string    `json:"password,omitempty"`
+	AuthData           string    `json:"auth_data,omitempty"`
 	AuthService        string    `json:"auth_service"`
 	Email              string    `json:"email"`
-	EmailVerified      bool      `json:"email_verified"`
+	EmailVerified      bool      `json:"email_verified,omitempty"`
 	Nickname           string    `json:"nickname"`
 	FirstName          string    `json:"first_name"`
 	LastName           string    `json:"last_name"`
 	Roles              string    `json:"roles"`
-	LastActivityAt     int64     `json:"last_activity_at"`
-	LastPingAt         int64     `json:"last_ping_at"`
-	AllowMarketing     bool      `json:"allow_marketing"`
-	Props              StringMap `json:"props"`
-	NotifyProps        StringMap `json:"notify_props"`
-	ThemeProps         StringMap `json:"theme_props"`
-	LastPasswordUpdate int64     `json:"last_password_update"`
-	LastPictureUpdate  int64     `json:"last_picture_update"`
-	FailedAttempts     int       `json:"failed_attempts"`
+	LastActivityAt     int64     `json:"last_activity_at,omitempty"`
+	LastPingAt         int64     `json:"last_ping_at,omitempty"`
+	AllowMarketing     bool      `json:"allow_marketing,omitempty"`
+	Props              StringMap `json:"props,omitempty"`
+	NotifyProps        StringMap `json:"notify_props,omitempty"`
+	ThemeProps         StringMap `json:"theme_props,omitempty"`
+	LastPasswordUpdate int64     `json:"last_password_update,omitempty"`
+	LastPictureUpdate  int64     `json:"last_picture_update,omitempty"`
+	FailedAttempts     int       `json:"failed_attempts,omitempty"`
 }
 
 // IsValid validates the user and returns an error if it isn't configured
@@ -80,15 +81,15 @@ func (u *User) IsValid() *AppError {
 		return NewAppError("User.IsValid", "Invalid email", "user_id="+u.Id)
 	}
 
-	if len(u.Nickname) > 64 {
+	if utf8.RuneCountInString(u.Nickname) > 64 {
 		return NewAppError("User.IsValid", "Invalid nickname", "user_id="+u.Id)
 	}
 
-	if len(u.FirstName) > 64 {
+	if utf8.RuneCountInString(u.FirstName) > 64 {
 		return NewAppError("User.IsValid", "Invalid first name", "user_id="+u.Id)
 	}
 
-	if len(u.LastName) > 64 {
+	if utf8.RuneCountInString(u.LastName) > 64 {
 		return NewAppError("User.IsValid", "Invalid last name", "user_id="+u.Id)
 	}
 
@@ -220,15 +221,26 @@ func (u *User) Sanitize(options map[string]bool) {
 		u.FirstName = ""
 		u.LastName = ""
 	}
-	if len(options) != 0 && !options["skypeid"] {
-		// TODO - fill in when SkypeId is added to user model
-	}
-	if len(options) != 0 && !options["phonenumber"] {
-		// TODO - fill in when PhoneNumber is added to user model
-	}
 	if len(options) != 0 && !options["passwordupdate"] {
 		u.LastPasswordUpdate = 0
 	}
+}
+
+func (u *User) ClearNonProfileFields() {
+	u.CreateAt = 0
+	u.UpdateAt = 0
+	u.Password = ""
+	u.AuthData = ""
+	u.AuthService = ""
+	u.EmailVerified = false
+	u.LastPingAt = 0
+	u.AllowMarketing = false
+	u.Props = StringMap{}
+	u.NotifyProps = StringMap{}
+	u.ThemeProps = StringMap{}
+	u.LastPasswordUpdate = 0
+	u.LastPictureUpdate = 0
+	u.FailedAttempts = 0
 }
 
 func (u *User) MakeNonNil() {
@@ -322,6 +334,13 @@ func IsInRole(userRoles string, inRole string) bool {
 
 	}
 
+	return false
+}
+
+func (u *User) IsSSOUser() bool {
+	if len(u.AuthData) != 0 && len(u.AuthService) != 0 {
+		return true
+	}
 	return false
 }
 

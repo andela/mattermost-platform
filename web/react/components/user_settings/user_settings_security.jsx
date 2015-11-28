@@ -1,11 +1,14 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var SettingItemMin = require('../setting_item_min.jsx');
-var SettingItemMax = require('../setting_item_max.jsx');
-var Client = require('../../utils/client.jsx');
-var AsyncClient = require('../../utils/async_client.jsx');
-var Constants = require('../../utils/constants.jsx');
+import SettingItemMin from '../setting_item_min.jsx';
+import SettingItemMax from '../setting_item_max.jsx';
+import AccessHistoryModal from '../access_history_modal.jsx';
+import ActivityLogModal from '../activity_log_modal.jsx';
+import ToggleModalButton from '../toggle_modal_button.jsx';
+import * as Client from '../../utils/client.jsx';
+import * as AsyncClient from '../../utils/async_client.jsx';
+import Constants from '../../utils/constants.jsx';
 
 export default class SecurityTab extends React.Component {
     constructor(props) {
@@ -15,7 +18,6 @@ export default class SecurityTab extends React.Component {
         this.updateCurrentPassword = this.updateCurrentPassword.bind(this);
         this.updateNewPassword = this.updateNewPassword.bind(this);
         this.updateConfirmPassword = this.updateConfirmPassword.bind(this);
-        this.handleClose = this.handleClose.bind(this);
         this.setupInitialState = this.setupInitialState.bind(this);
 
         this.state = this.setupInitialState();
@@ -75,29 +77,8 @@ export default class SecurityTab extends React.Component {
     updateConfirmPassword(e) {
         this.setState({confirmPassword: e.target.value});
     }
-    handleHistoryOpen() {
-        $('#user_settings').modal('hide');
-    }
-    handleDevicesOpen() {
-        $('#user_settings').modal('hide');
-    }
-    handleClose() {
-        $(ReactDOM.findDOMNode(this)).find('.form-control').each(function resetValue() {
-            this.value = '';
-        });
-        this.setState({currentPassword: '', newPassword: '', confirmPassword: '', serverError: null, passwordError: null});
-
-        this.props.updateTab('general');
-    }
     setupInitialState() {
         return {currentPassword: '', newPassword: '', confirmPassword: ''};
-    }
-    componentDidMount() {
-        $('#user_settings').on('hidden.bs.modal', this.handleClose);
-    }
-    componentWillUnmount() {
-        $('#user_settings').off('hidden.bs.modal', this.handleClose);
-        this.props.updateSection('');
     }
     render() {
         var serverError;
@@ -236,14 +217,19 @@ export default class SecurityTab extends React.Component {
                         className='close'
                         data-dismiss='modal'
                         aria-label='Close'
+                        onClick={this.props.closeModal}
                     >
-                        <span aria-hidden='true'>&times;</span>
+                        <span aria-hidden='true'>{'×'}</span>
                     </button>
                     <h4
                         className='modal-title'
                         ref='title'
                     >
-                        <i className='modal-back'></i>Security Settings
+                        <i
+                            className='modal-back'
+                            onClick={this.props.collapseModal}
+                        />
+                        {'Security Settings'}
                     </h4>
                 </div>
                 <div className='user-settings'>
@@ -252,25 +238,19 @@ export default class SecurityTab extends React.Component {
                     {passwordSection}
                     <div className='divider-dark'/>
                     <br></br>
-                    <a
-                        data-toggle='modal'
+                    <ToggleModalButton
                         className='security-links theme'
-                        data-target='#access-history'
-                        href='#'
-                        onClick={this.handleHistoryOpen}
+                        dialogType={AccessHistoryModal}
                     >
                         <i className='fa fa-clock-o'></i>View Access History
-                    </a>
+                    </ToggleModalButton>
                     <b> </b>
-                    <a
-                        data-toggle='modal'
+                    <ToggleModalButton
                         className='security-links theme'
-                        data-target='#activity-log'
-                        href='#'
-                        onClick={this.handleDevicesOpen}
+                        dialogType={ActivityLogModal}
                     >
-                        <i className='fa fa-globe'></i>View and Logout of Active Sessions
-                    </a>
+                        <i className='fa fa-clock-o'></i>{'View and Logout of Active Sessions'}
+                    </ToggleModalButton>
                 </div>
             </div>
         );
@@ -285,5 +265,8 @@ SecurityTab.propTypes = {
     user: React.PropTypes.object,
     activeSection: React.PropTypes.string,
     updateSection: React.PropTypes.func,
-    updateTab: React.PropTypes.func
+    updateTab: React.PropTypes.func,
+    closeModal: React.PropTypes.func.isRequired,
+    collapseModal: React.PropTypes.func.isRequired,
+    setEnforceFocus: React.PropTypes.func.isRequired
 };

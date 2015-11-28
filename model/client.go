@@ -211,8 +211,8 @@ func (c *Client) InviteMembers(invites *Invites) (*Result, *AppError) {
 	}
 }
 
-func (c *Client) UpdateTeamDisplayName(data map[string]string) (*Result, *AppError) {
-	if r, err := c.DoApiPost("/teams/update_name", MapToJson(data)); err != nil {
+func (c *Client) UpdateTeam(team *Team) (*Result, *AppError) {
+	if r, err := c.DoApiPost("/teams/update", team.ToJson()); err != nil {
 		return nil, err
 	} else {
 		return &Result{r.Header.Get(HEADER_REQUEST_ID),
@@ -618,6 +618,24 @@ func (c *Client) GetPostsSince(channelId string, time int64) (*Result, *AppError
 	}
 }
 
+func (c *Client) GetPostsBefore(channelId string, postid string, offset int, limit int, etag string) (*Result, *AppError) {
+	if r, err := c.DoApiGet(fmt.Sprintf("/channels/%v/post/%v/before/%v/%v", channelId, postid, offset, limit), "", etag); err != nil {
+		return nil, err
+	} else {
+		return &Result{r.Header.Get(HEADER_REQUEST_ID),
+			r.Header.Get(HEADER_ETAG_SERVER), PostListFromJson(r.Body)}, nil
+	}
+}
+
+func (c *Client) GetPostsAfter(channelId string, postid string, offset int, limit int, etag string) (*Result, *AppError) {
+	if r, err := c.DoApiGet(fmt.Sprintf("/channels/%v/post/%v/after/%v/%v", channelId, postid, offset, limit), "", etag); err != nil {
+		return nil, err
+	} else {
+		return &Result{r.Header.Get(HEADER_REQUEST_ID),
+			r.Header.Get(HEADER_ETAG_SERVER), PostListFromJson(r.Body)}, nil
+	}
+}
+
 func (c *Client) GetPost(channelId string, postId string, etag string) (*Result, *AppError) {
 	if r, err := c.DoApiGet(fmt.Sprintf("/channels/%v/post/%v", channelId, postId), "", etag); err != nil {
 		return nil, err
@@ -783,8 +801,8 @@ func (c *Client) ResetPassword(data map[string]string) (*Result, *AppError) {
 	}
 }
 
-func (c *Client) GetStatuses() (*Result, *AppError) {
-	if r, err := c.DoApiGet("/users/status", "", ""); err != nil {
+func (c *Client) GetStatuses(data []string) (*Result, *AppError) {
+	if r, err := c.DoApiPost("/users/status", ArrayToJson(data)); err != nil {
 		return nil, err
 	} else {
 		return &Result{r.Header.Get(HEADER_REQUEST_ID),

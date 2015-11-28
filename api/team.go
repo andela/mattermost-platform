@@ -30,7 +30,7 @@ func InitTeam(r *mux.Router) {
 	sr.Handle("/find_teams", ApiAppHandler(findTeams)).Methods("POST")
 	sr.Handle("/email_teams", ApiAppHandler(emailTeams)).Methods("POST")
 	sr.Handle("/invite_members", ApiUserRequired(inviteMembers)).Methods("POST")
-	sr.Handle("/update_name", ApiUserRequired(updateTeamDisplayName)).Methods("POST")
+	sr.Handle("/update", ApiUserRequired(updateTeam)).Methods("POST")
 	sr.Handle("/me", ApiUserRequired(getMyTeam)).Methods("GET")
 	// These should be moved to the global admain console
 	sr.Handle("/import_team", ApiUserRequired(importTeam)).Methods("POST")
@@ -510,16 +510,14 @@ func InviteMembers(c *Context, team *model.Team, user *model.User, invites []str
 			}
 
 			subjectPage := NewServerTemplatePage("invite_subject")
-			subjectPage.Props["SiteURL"] = c.GetSiteURL()
 			subjectPage.Props["SenderName"] = sender
 			subjectPage.Props["TeamDisplayName"] = team.DisplayName
 
 			bodyPage := NewServerTemplatePage("invite_body")
-			bodyPage.Props["SiteURL"] = c.GetSiteURL()
+			bodyPage.Props["TeamURL"] = c.GetTeamURL()
 			bodyPage.Props["TeamDisplayName"] = team.DisplayName
 			bodyPage.Props["SenderName"] = sender
 			bodyPage.Props["SenderStatus"] = senderRole
-			bodyPage.Props["Email"] = invite
 			props := make(map[string]string)
 			props["email"] = invite
 			props["id"] = team.Id
@@ -541,40 +539,80 @@ func InviteMembers(c *Context, team *model.Team, user *model.User, invites []str
 	}
 }
 
-func updateTeamDisplayName(c *Context, w http.ResponseWriter, r *http.Request) {
+func updateTeam(c *Context, w http.ResponseWriter, r *http.Request) {
 
-	props := model.MapFromJson(r.Body)
+	team := model.TeamFromJson(r.Body)
 
-	new_name := props["new_name"]
-	if len(new_name) == 0 {
-		c.SetInvalidParam("updateTeamDisplayName", "new_name")
+	if team == nil {
+		c.SetInvalidParam("updateTeam", "team")
 		return
 	}
 
-	teamId := props["team_id"]
-	if len(teamId) > 0 && len(teamId) != 26 {
-		c.SetInvalidParam("updateTeamDisplayName", "team_id")
-		return
-	} else if len(teamId) == 0 {
-		teamId = c.Session.TeamId
-	}
-
-	if !c.HasPermissionsToTeam(teamId, "updateTeamDisplayName") {
-		return
-	}
+	team.Id = c.Session.TeamId
 
 	if !c.IsTeamAdmin() {
-		c.Err = model.NewAppError("updateTeamDisplayName", "You do not have the appropriate permissions", "userId="+c.Session.UserId)
+		c.Err = model.NewAppError("updateTeam", "You do not have the appropriate permissions", "userId="+c.Session.UserId)
 		c.Err.StatusCode = http.StatusForbidden
 		return
 	}
 
-	if result := <-Srv.Store.Team().UpdateDisplayName(new_name, c.Session.TeamId); result.Err != nil {
+	var oldTeam *model.Team
+	if result := <-Srv.Store.Team().Get(team.Id); result.Err != nil {
+		c.Err = result.Err
+		return
+	} else {
+		oldTeam = result.Data.(*model.Team)
+	}
+
+	oldTeam.DisplayName = team.DisplayName
+	oldTeam.InviteId = team.InviteId
+	oldTeam.AllowOpenInvite = team.AllowOpenInvite
+	oldTeam.AllowTeamListing = team.AllowTeamListing
+	oldTeam.CompanyName = team.CompanyName
+	oldTeam.AllowedDomains = team.AllowedDomains
+	//oldTeam.Type = team.Type
+
+	if result := <-Srv.Store.Team().Update(oldTeam); result.Err != nil {
 		c.Err = result.Err
 		return
 	}
 
-	w.Write([]byte(model.MapToJson(props)))
+	oldTeam.Sanitize()
+
+	w.Write([]byte(oldTeam.ToJson()))
+}
+
+func PermanentDeleteTeam(c *Context, team *model.Team) *model.AppError {
+	l4g.Warn("Attempting to permanently delete team %v id=%v", team.Name, team.Id)
+	c.Path = "/teams/permanent_delete"
+	c.LogAuditWithUserId("", fmt.Sprintf("attempt teamId=%v", team.Id))
+
+	team.DeleteAt = model.GetMillis()
+	if result := <-Srv.Store.Team().Update(team); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.User().GetForExport(team.Id); result.Err != nil {
+		return result.Err
+	} else {
+		users := result.Data.([]*model.User)
+		for _, user := range users {
+			PermanentDeleteUser(c, user)
+		}
+	}
+
+	if result := <-Srv.Store.Channel().PermanentDeleteByTeam(team.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Team().PermanentDelete(team.Id); result.Err != nil {
+		return result.Err
+	}
+
+	l4g.Warn("Permanently deleted team %v id=%v", team.Name, team.Id)
+	c.LogAuditWithUserId("", fmt.Sprintf("success teamId=%v", team.Id))
+
+	return nil
 }
 
 func getMyTeam(c *Context, w http.ResponseWriter, r *http.Request) {

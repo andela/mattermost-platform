@@ -23,6 +23,7 @@ func InitPost(r *mux.Router) {
 	l4g.Debug("Initializing post api routes")
 
 	r.Handle("/posts/search", ApiUserRequired(searchPosts)).Methods("GET")
+	r.Handle("/posts/{post_id}", ApiUserRequired(getPostById)).Methods("GET")
 
 	sr := r.PathPrefix("/channels/{id:[A-Za-z0-9]+}").Subrouter()
 	sr.Handle("/create", ApiUserRequired(createPost)).Methods("POST")
@@ -31,6 +32,8 @@ func InitPost(r *mux.Router) {
 	sr.Handle("/posts/{time:[0-9]+}", ApiUserRequiredActivity(getPostsSince, false)).Methods("GET")
 	sr.Handle("/post/{post_id:[A-Za-z0-9]+}", ApiUserRequired(getPost)).Methods("GET")
 	sr.Handle("/post/{post_id:[A-Za-z0-9]+}/delete", ApiUserRequired(deletePost)).Methods("POST")
+	sr.Handle("/post/{post_id:[A-Za-z0-9]+}/before/{offset:[0-9]+}/{num_posts:[0-9]+}", ApiUserRequired(getPostsBefore)).Methods("GET")
+	sr.Handle("/post/{post_id:[A-Za-z0-9]+}/after/{offset:[0-9]+}/{num_posts:[0-9]+}", ApiUserRequired(getPostsAfter)).Methods("GET")
 }
 
 func createPost(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -145,7 +148,7 @@ func CreatePost(c *Context, post *model.Post, triggerWebhooks bool) (*model.Post
 	return rpost, nil
 }
 
-func CreateWebhookPost(c *Context, channelId, text, overrideUsername, overrideIconUrl string) (*model.Post, *model.AppError) {
+func CreateWebhookPost(c *Context, channelId, text, overrideUsername, overrideIconUrl string, props model.StringInterface, postType string) (*model.Post, *model.AppError) {
 	// parse links into Markdown format
 	linkWithTextRegex := regexp.MustCompile(`<([^<\|]+)\|([^>]+)>`)
 	text = linkWithTextRegex.ReplaceAllString(text, "[${2}](${1})")
@@ -153,7 +156,7 @@ func CreateWebhookPost(c *Context, channelId, text, overrideUsername, overrideIc
 	linkRegex := regexp.MustCompile(`<\s*(\S*)\s*>`)
 	text = linkRegex.ReplaceAllString(text, "${1}")
 
-	post := &model.Post{UserId: c.Session.UserId, ChannelId: channelId, Message: text}
+	post := &model.Post{UserId: c.Session.UserId, ChannelId: channelId, Message: text, Type: postType}
 	post.AddProp("from_webhook", "true")
 
 	if utils.Cfg.ServiceSettings.EnablePostUsernameOverride {
@@ -169,6 +172,14 @@ func CreateWebhookPost(c *Context, channelId, text, overrideUsername, overrideIc
 			post.AddProp("override_icon_url", overrideIconUrl)
 		} else {
 			post.AddProp("override_icon_url", model.DEFAULT_WEBHOOK_ICON)
+		}
+	}
+
+	if len(props) > 0 {
+		for key, val := range props {
+			if key != "override_icon_url" && key != "override_username" && key != "from_webhook" {
+				post.AddProp(key, val)
+			}
 		}
 	}
 
@@ -219,6 +230,14 @@ func handlePostEventsAndForget(c *Context, post *model.Post, triggerWebhooks boo
 
 func handleWebhookEventsAndForget(c *Context, post *model.Post, team *model.Team, channel *model.Channel, user *model.User) {
 	go func() {
+		if !utils.Cfg.ServiceSettings.EnableOutgoingWebhooks {
+			return
+		}
+
+		if channel.Type != model.CHANNEL_OPEN {
+			return
+		}
+
 		hchan := Srv.Store.Webhook().GetOutgoingByTeam(c.Session.TeamId)
 
 		hooks := []*model.OutgoingWebhook{}
@@ -284,7 +303,7 @@ func handleWebhookEventsAndForget(c *Context, post *model.Post, team *model.Team
 							newContext := &Context{mockSession, model.NewId(), "", c.Path, nil, c.teamURLValid, c.teamURL, c.siteURL, 0}
 
 							if text, ok := respProps["text"]; ok {
-								if _, err := CreateWebhookPost(newContext, post.ChannelId, text, respProps["username"], respProps["icon_url"]); err != nil {
+								if _, err := CreateWebhookPost(newContext, post.ChannelId, text, respProps["username"], respProps["icon_url"], post.Props, post.Type); err != nil {
 									l4g.Error("Failed to create response post, err=%v", err)
 								}
 							}
@@ -388,9 +407,9 @@ func sendNotificationsAndForget(c *Context, post *model.Post, team *model.Team, 
 					}
 
 					// Add @all to keywords if user has them turned on
-					if profile.NotifyProps["all"] == "true" {
-						keywordMap["@all"] = append(keywordMap["@all"], profile.Id)
-					}
+					// if profile.NotifyProps["all"] == "true" {
+					// 	keywordMap["@all"] = append(keywordMap["@all"], profile.Id)
+					// }
 
 					// Add @channel to keywords if user has them turned on
 					if profile.NotifyProps["channel"] == "true" {
@@ -526,11 +545,10 @@ func sendNotificationsAndForget(c *Context, post *model.Post, team *model.Team, 
 							alreadySeen := make(map[string]string)
 
 							for _, session := range sessions {
-								if len(session.DeviceId) > 0 && alreadySeen[session.DeviceId] == "" {
-
+								if len(session.DeviceId) > 0 && alreadySeen[session.DeviceId] == "" && strings.HasPrefix(session.DeviceId, "apple:") {
 									alreadySeen[session.DeviceId] = session.DeviceId
 
-									utils.SendAppleNotifyAndForget(session.DeviceId, subjectPage.Render(), 1)
+									utils.SendAppleNotifyAndForget(strings.TrimPrefix(session.DeviceId, "apple:"), subjectPage.Render(), 1)
 								}
 							}
 						}
@@ -750,6 +768,41 @@ func getPost(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getPostById(c *Context, w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+
+	postId := params["post_id"]
+	if len(postId) != 26 {
+		c.SetInvalidParam("getPostById", "postId")
+		return
+	}
+
+	if result := <-Srv.Store.Post().Get(postId); result.Err != nil {
+		c.Err = result.Err
+		return
+	} else {
+		list := result.Data.(*model.PostList)
+
+		if len(list.Order) != 1 {
+			c.Err = model.NewAppError("getPostById", "Unable to get post", "")
+			return
+		}
+		post := list.Posts[list.Order[0]]
+
+		cchan := Srv.Store.Channel().CheckPermissionsTo(c.Session.TeamId, post.ChannelId, c.Session.UserId)
+		if !c.HasPermissionsToChannel(cchan, "getPostById") {
+			return
+		}
+
+		if HandleEtag(list.Etag(), w, r) {
+			return
+		}
+
+		w.Header().Set(model.HEADER_ETAG_SERVER, list.Etag())
+		w.Write([]byte(list.ToJson()))
+	}
+}
+
 func deletePost(c *Context, w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 
@@ -812,6 +865,70 @@ func deletePost(c *Context, w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func getPostsBefore(c *Context, w http.ResponseWriter, r *http.Request) {
+	getPostsBeforeOrAfter(c, w, r, true)
+}
+func getPostsAfter(c *Context, w http.ResponseWriter, r *http.Request) {
+	getPostsBeforeOrAfter(c, w, r, false)
+}
+func getPostsBeforeOrAfter(c *Context, w http.ResponseWriter, r *http.Request, before bool) {
+	params := mux.Vars(r)
+
+	id := params["id"]
+	if len(id) != 26 {
+		c.SetInvalidParam("getPostsBeforeOrAfter", "channelId")
+		return
+	}
+
+	postId := params["post_id"]
+	if len(postId) != 26 {
+		c.SetInvalidParam("getPostsBeforeOrAfter", "postId")
+		return
+	}
+
+	numPosts, err := strconv.Atoi(params["num_posts"])
+	if err != nil || numPosts <= 0 {
+		c.SetInvalidParam("getPostsBeforeOrAfter", "numPosts")
+		return
+	}
+
+	offset, err := strconv.Atoi(params["offset"])
+	if err != nil || offset < 0 {
+		c.SetInvalidParam("getPostsBeforeOrAfter", "offset")
+		return
+	}
+
+	cchan := Srv.Store.Channel().CheckPermissionsTo(c.Session.TeamId, id, c.Session.UserId)
+	// We can do better than this etag in this situation
+	etagChan := Srv.Store.Post().GetEtag(id)
+
+	if !c.HasPermissionsToChannel(cchan, "getPostsBeforeOrAfter") {
+		return
+	}
+
+	etag := (<-etagChan).Data.(string)
+	if HandleEtag(etag, w, r) {
+		return
+	}
+
+	var pchan store.StoreChannel
+	if before {
+		pchan = Srv.Store.Post().GetPostsBefore(id, postId, numPosts, offset)
+	} else {
+		pchan = Srv.Store.Post().GetPostsAfter(id, postId, numPosts, offset)
+	}
+
+	if result := <-pchan; result.Err != nil {
+		c.Err = result.Err
+		return
+	} else {
+		list := result.Data.(*model.PostList)
+
+		w.Header().Set(model.HEADER_ETAG_SERVER, etag)
+		w.Write([]byte(list.ToJson()))
+	}
+}
+
 func searchPosts(c *Context, w http.ResponseWriter, r *http.Request) {
 	terms := r.FormValue("terms")
 
@@ -824,7 +941,10 @@ func searchPosts(c *Context, w http.ResponseWriter, r *http.Request) {
 	channels := []store.StoreChannel{}
 
 	for _, params := range paramsList {
-		channels = append(channels, Srv.Store.Post().Search(c.Session.TeamId, c.Session.UserId, params))
+		// don't allow users to search for everything
+		if params.Terms != "*" {
+			channels = append(channels, Srv.Store.Post().Search(c.Session.TeamId, c.Session.UserId, params))
+		}
 	}
 
 	posts := &model.PostList{}

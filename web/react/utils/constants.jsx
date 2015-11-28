@@ -1,21 +1,26 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var keyMirror = require('keymirror');
+import keyMirror from 'keymirror';
 
-module.exports = {
+export default {
     ActionTypes: keyMirror({
         RECIEVED_ERROR: null,
 
         CLICK_CHANNEL: null,
         CREATE_CHANNEL: null,
         LEAVE_CHANNEL: null,
+        CREATE_POST: null,
+        POST_DELETED: null,
+
         RECIEVED_CHANNELS: null,
         RECIEVED_CHANNEL: null,
         RECIEVED_MORE_CHANNELS: null,
         RECIEVED_CHANNEL_EXTRA_INFO: null,
 
+        FOCUS_POST: null,
         RECIEVED_POSTS: null,
+        RECIEVED_FOCUSED_POST: null,
         RECIEVED_POST: null,
         RECIEVED_EDIT_POST: null,
         RECIEVED_SEARCH: null,
@@ -39,7 +44,12 @@ module.exports = {
         RECIEVED_LOGS: null,
         RECIEVED_ALL_TEAMS: null,
 
-        TOGGLE_IMPORT_THEME_MODAL: null
+        SHOW_SEARCH: null,
+
+        TOGGLE_IMPORT_THEME_MODAL: null,
+        TOGGLE_INVITE_MEMBER_MODAL: null,
+        TOGGLE_DELETE_POST_MODAL: null,
+        TOGGLE_GET_TEAM_INVITE_LINK_MODAL: null
     }),
 
     PayloadSources: keyMirror({
@@ -58,7 +68,8 @@ module.exports = {
         TYPING: 'typing'
     },
 
-    SPECIAL_MENTIONS: ['all', 'channel'],
+    //SPECIAL_MENTIONS: ['all', 'channel'],
+    SPECIAL_MENTIONS: ['channel'],
     CHARACTER_LIMIT: 4000,
     IMAGE_TYPES: ['jpg', 'gif', 'bmp', 'png', 'jpeg'],
     AUDIO_TYPES: ['mp3', 'wav', 'wma', 'm4a', 'flac', 'aac'],
@@ -95,6 +106,7 @@ module.exports = {
     EMAIL_SERVICE: 'email',
     POST_CHUNK_SIZE: 60,
     MAX_POST_CHUNKS: 3,
+    POST_FOCUS_CONTEXT_RADIUS: 10,
     POST_LOADING: 'loading',
     POST_FAILED: 'failed',
     POST_DELETED: 'deleted',
@@ -127,6 +139,7 @@ module.exports = {
     MAX_DMS: 20,
     DM_CHANNEL: 'D',
     OPEN_CHANNEL: 'O',
+    PRIVATE_CHANNEL: 'P',
     INVITE_TEAM: 'I',
     OPEN_TEAM: 'O',
     MAX_POST_LEN: 4000,
@@ -157,7 +170,8 @@ module.exports = {
             buttonBg: '#2389d7',
             buttonColor: '#FFFFFF',
             mentionHighlightBg: '#fff2bb',
-            mentionHighlightLink: '#2f81b7'
+            mentionHighlightLink: '#2f81b7',
+            codeTheme: 'github'
         },
         organization: {
             type: 'Organization',
@@ -179,7 +193,8 @@ module.exports = {
             buttonBg: '#1dacfc',
             buttonColor: '#FFFFFF',
             mentionHighlightBg: '#fff2bb',
-            mentionHighlightLink: '#2f81b7'
+            mentionHighlightLink: '#2f81b7',
+            codeTheme: 'github'
         },
         mattermostDark: {
             type: 'Mattermost Dark',
@@ -201,7 +216,8 @@ module.exports = {
             buttonBg: '#4CBBA4',
             buttonColor: '#FFFFFF',
             mentionHighlightBg: '#984063',
-            mentionHighlightLink: '#A4FFEB'
+            mentionHighlightLink: '#A4FFEB',
+            codeTheme: 'solarized_dark'
         },
         windows10: {
             type: 'Windows Dark',
@@ -223,7 +239,8 @@ module.exports = {
             buttonBg: '#0177e7',
             buttonColor: '#FFFFFF',
             mentionHighlightBg: '#784098',
-            mentionHighlightLink: '#A4FFEB'
+            mentionHighlightLink: '#A4FFEB',
+            codeTheme: 'monokai'
         }
     },
     THEME_ELEMENTS: [
@@ -302,12 +319,42 @@ module.exports = {
         {
             id: 'mentionHighlightLink',
             uiName: 'Mention Highlight Link'
+        },
+        {
+            id: 'codeTheme',
+            uiName: 'Code Theme',
+            themes: [
+                {
+                    id: 'solarized_dark',
+                    uiName: 'Solarized Dark'
+                },
+                {
+                    id: 'solarized_light',
+                    uiName: 'Solarized Light'
+                },
+                {
+                    id: 'github',
+                    uiName: 'GitHub'
+                },
+                {
+                    id: 'monokai',
+                    uiName: 'Monokai'
+                }
+            ]
         }
     ],
+    DEFAULT_CODE_THEME: 'github',
     Preferences: {
         CATEGORY_DIRECT_CHANNEL_SHOW: 'direct_channel_show',
         CATEGORY_DISPLAY_SETTINGS: 'display_settings',
-        CATEGORY_ADVANCED_SETTINGS: 'advanced_settings'
+        CATEGORY_ADVANCED_SETTINGS: 'advanced_settings',
+        TUTORIAL_STEP: 'tutorial_step'
+    },
+    TutorialSteps: {
+        INTRO_SCREENS: 0,
+        POST_POPOVER: 1,
+        CHANNEL_POPOVER: 2,
+        MENU_POPOVER: 3
     },
     KeyCodes: {
         UP: 38,
@@ -318,5 +365,45 @@ module.exports = {
         ENTER: 13,
         ESCAPE: 27,
         SPACE: 32
+    },
+    HighlightedLanguages: {
+        diff: 'Diff',
+        apache: 'Apache',
+        makefile: 'Makefile',
+        http: 'HTTP',
+        json: 'JSON',
+        markdown: 'Markdown',
+        javascript: 'JavaScript',
+        css: 'CSS',
+        nginx: 'nginx',
+        objectivec: 'Objective-C',
+        python: 'Python',
+        xml: 'XML',
+        perl: 'Perl',
+        bash: 'Bash',
+        php: 'PHP',
+        coffeescript: 'CoffeeScript',
+        cs: 'C#',
+        cpp: 'C++',
+        sql: 'SQL',
+        go: 'Go',
+        ruby: 'Ruby',
+        java: 'Java',
+        ini: 'ini'
+    },
+    PostsViewJumpTypes: {
+        BOTTOM: 1,
+        POST: 2,
+        SIDEBAR_OPEN: 3
+    },
+    NotificationPrefs: {
+        MENTION: 'mention'
+    },
+    FeatureTogglePrefix: 'feature_enabled_',
+    PRE_RELEASE_FEATURES: {
+        MARKDOWN_PREVIEW: {
+            label: 'markdown_preview', // github issue: https://github.com/mattermost/platform/pull/1389
+            description: 'Show markdown preview option in message input box'
+        }
     }
 };

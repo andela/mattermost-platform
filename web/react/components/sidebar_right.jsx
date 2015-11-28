@@ -1,15 +1,11 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var SearchResults = require('./search_results.jsx');
-var RhsThread = require('./rhs_thread.jsx');
-var SearchStore = require('../stores/search_store.jsx');
-var PostStore = require('../stores/post_store.jsx');
-var Utils = require('../utils/utils.jsx');
-
-function getStateFromStores() {
-    return {search_visible: SearchStore.getSearchResults() != null, post_right_visible: PostStore.getSelectedPost() != null, is_mention_search: SearchStore.getIsMentionSearch()};
-}
+import SearchResults from './search_results.jsx';
+import RhsThread from './rhs_thread.jsx';
+import SearchStore from '../stores/search_store.jsx';
+import PostStore from '../stores/post_store.jsx';
+import * as Utils from '../utils/utils.jsx';
 
 export default class SidebarRight extends React.Component {
     constructor(props) {
@@ -19,43 +15,42 @@ export default class SidebarRight extends React.Component {
 
         this.onSelectedChange = this.onSelectedChange.bind(this);
         this.onSearchChange = this.onSearchChange.bind(this);
+        this.onShowSearch = this.onShowSearch.bind(this);
 
-        this.state = getStateFromStores();
+        this.doStrangeThings = this.doStrangeThings.bind(this);
+
+        this.state = this.getStateFromStores();
+    }
+    getStateFromStores() {
+        return {
+            search_visible: SearchStore.getSearchResults() != null,
+            post_right_visible: PostStore.getSelectedPost() != null,
+            is_mention_search: SearchStore.getIsMentionSearch()
+        };
     }
     componentDidMount() {
         SearchStore.addSearchChangeListener(this.onSearchChange);
         PostStore.addSelectedPostChangeListener(this.onSelectedChange);
+        SearchStore.addShowSearchListener(this.onShowSearch);
+        this.doStrangeThings();
     }
     componentWillUnmount() {
         SearchStore.removeSearchChangeListener(this.onSearchChange);
         PostStore.removeSelectedPostChangeListener(this.onSelectedChange);
+        SearchStore.removeShowSearchListener(this.onShowSearch);
     }
-    componentDidUpdate() {
-        if (this.plScrolledToBottom) {
-            var postHolder = $('.post-list-holder-by-time').not('.inactive');
-            postHolder.scrollTop(postHolder[0].scrollHeight);
-        } else {
-            $('.top-visible-post')[0].scrollIntoView();
-        }
+    componentWillUpdate() {
+        PostStore.jumpPostsViewSidebarOpen();
     }
-    onSelectedChange(fromSearch) {
-        var newState = getStateFromStores(fromSearch);
-        newState.from_search = fromSearch;
-        if (!Utils.areStatesEqual(newState, this.state)) {
-            this.setState(newState);
-        }
-    }
-    onSearchChange() {
-        var newState = getStateFromStores();
-        if (!Utils.areStatesEqual(newState, this.state)) {
-            this.setState(newState);
-        }
-    }
-    render() {
-        var postHolder = $('.post-list-holder-by-time').not('.inactive');
-        const position = postHolder.scrollTop() + postHolder.height() + 14;
-        const bottom = postHolder[0].scrollHeight;
-        this.plScrolledToBottom = position >= bottom;
+    doStrangeThings() {
+        // We should have a better way to do this stuff
+        // Hence the function name.
+        $('.inner__wrap').removeClass('.move--right');
+        $('.inner__wrap').addClass('move--left');
+        $('.sidebar--left').removeClass('move--right');
+        $('.sidebar--right').addClass('move--left');
+
+        //$('.sidebar--right').prepend('<div class="sidebar__overlay"></div>');
 
         if (!(this.state.search_visible || this.state.post_right_visible)) {
             $('.inner__wrap').removeClass('move--left').removeClass('move--right');
@@ -65,17 +60,36 @@ export default class SidebarRight extends React.Component {
             );
         }
 
-        $('.inner__wrap').removeClass('.move--right').addClass('move--left');
-        $('.sidebar--left').removeClass('move--right');
-        $('.sidebar--right').addClass('move--left');
-        $('.sidebar--right').prepend('<div class="sidebar__overlay"></div>');
-
-        setTimeout(() => {
-            $('.sidebar__overlay').fadeOut('200', function fadeOverlay() {
-                $(this).remove();
+        /*setTimeout(() => {
+            $('.sidebar__overlay').fadeOut('200', () => {
+                $('.sidebar__overlay').remove();
             });
-        }, 500);
-
+            }, 500);*/
+    }
+    componentDidUpdate() {
+        this.doStrangeThings();
+    }
+    onSelectedChange(fromSearch) {
+        var newState = this.getStateFromStores(fromSearch);
+        newState.from_search = fromSearch;
+        if (!Utils.areObjectsEqual(newState, this.state)) {
+            this.setState(newState);
+        }
+    }
+    onSearchChange() {
+        var newState = this.getStateFromStores();
+        if (!Utils.areObjectsEqual(newState, this.state)) {
+            this.setState(newState);
+        }
+    }
+    onShowSearch() {
+        if (!this.state.search_visible) {
+            this.setState({
+                search_visible: true
+            });
+        }
+    }
+    render() {
         var content = '';
 
         if (this.state.search_visible) {

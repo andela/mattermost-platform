@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-const SettingsSidebar = require('./settings_sidebar.jsx');
-const TeamSettings = require('./team_settings.jsx');
+import SettingsSidebar from './settings_sidebar.jsx';
+import TeamSettings from './team_settings.jsx';
 
 export default class TeamSettingsModal extends React.Component {
     constructor(props) {
@@ -17,11 +17,13 @@ export default class TeamSettingsModal extends React.Component {
         };
     }
     componentDidMount() {
-        $('body').on('click', '.modal-back', function handleBackClick() {
+        const modal = $(ReactDOM.findDOMNode(this.refs.modal));
+
+        modal.on('click', '.modal-back', function handleBackClick() {
             $(this).closest('.modal-dialog').removeClass('display--content');
             $(this).closest('.modal-dialog').find('.settings-table .nav li.active').removeClass('active');
         });
-        $('body').on('click', '.modal-header .close', () => {
+        modal.on('click', '.modal-header .close', () => {
             setTimeout(() => {
                 $('.modal-dialog.display--content').removeClass('display--content');
             }, 500);
@@ -82,7 +84,6 @@ export default class TeamSettingsModal extends React.Component {
                                         activeTab={this.state.activeTab}
                                         activeSection={this.state.activeSection}
                                         updateSection={this.updateSection}
-                                        teamDisplayName={this.props.teamDisplayName}
                                     />
                                 </div>
                             </div>
@@ -95,5 +96,4 @@ export default class TeamSettingsModal extends React.Component {
 }
 
 TeamSettingsModal.propTypes = {
-    teamDisplayName: React.PropTypes.string.isRequired
 };

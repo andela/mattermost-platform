@@ -49,7 +49,7 @@ func InitUser(r *mux.Router) {
 	sr.Handle("/newimage", ApiUserRequired(uploadProfileImage)).Methods("POST")
 
 	sr.Handle("/me", ApiAppHandler(getMe)).Methods("GET")
-	sr.Handle("/status", ApiUserRequiredActivity(getStatuses, false)).Methods("GET")
+	sr.Handle("/status", ApiUserRequiredActivity(getStatuses, false)).Methods("POST")
 	sr.Handle("/profiles", ApiUserRequired(getProfiles)).Methods("GET")
 	sr.Handle("/profiles/{id:[A-Za-z0-9]+}", ApiUserRequired(getProfiles)).Methods("GET")
 	sr.Handle("/{id:[A-Za-z0-9]+}", ApiUserRequired(getUser)).Methods("GET")
@@ -87,6 +87,8 @@ func createUser(c *Context, w http.ResponseWriter, r *http.Request) {
 
 	hash := r.URL.Query().Get("h")
 
+	sendWelcomeEmail := true
+
 	if IsVerifyHashRequired(user, team, hash) {
 		data := r.URL.Query().Get("d")
 		props := model.MapFromJson(strings.NewReader(data))
@@ -109,15 +111,20 @@ func createUser(c *Context, w http.ResponseWriter, r *http.Request) {
 
 		user.Email = props["email"]
 		user.EmailVerified = true
+		sendWelcomeEmail = false
 	}
 
-	if len(user.AuthData) > 0 && len(user.AuthService) > 0 {
+	if user.IsSSOUser() {
 		user.EmailVerified = true
 	}
 
 	ruser := CreateUser(c, team, user)
 	if c.Err != nil {
 		return
+	}
+
+	if sendWelcomeEmail {
+		sendWelcomeEmailAndForget(ruser.Id, ruser.Email, team.Name, team.DisplayName, c.GetSiteURL(), c.GetTeamURLFromTeam(team), ruser.EmailVerified)
 	}
 
 	w.Write([]byte(ruser.ToJson()))
@@ -198,14 +205,17 @@ func CreateUser(c *Context, team *model.Team, user *model.User) *model.User {
 			l4g.Error("Encountered an issue joining default channels user_id=%s, team_id=%s, err=%v", ruser.Id, ruser.TeamId, err)
 		}
 
-		sendWelcomeEmailAndForget(ruser.Id, ruser.Email, team.Name, team.DisplayName, c.GetSiteURL(), c.GetTeamURLFromTeam(team), user.EmailVerified)
-
 		addDirectChannelsAndForget(ruser)
 
 		if user.EmailVerified {
 			if cresult := <-Srv.Store.User().VerifyEmail(ruser.Id); cresult.Err != nil {
 				l4g.Error("Failed to set email verified err=%v", cresult.Err)
 			}
+		}
+
+		pref := model.Preference{UserId: ruser.Id, Category: model.PREFERENCE_CATEGORY_TUTORIAL_STEPS, Name: ruser.Id, Value: "0"}
+		if presult := <-Srv.Store.Preference().Save(&model.Preferences{pref}); presult.Err != nil {
+			l4g.Error("Encountered error saving tutorial preference, err=%v", presult.Err.Message)
 		}
 
 		ruser.Sanitize(map[string]bool{})
@@ -659,6 +669,7 @@ func getProfiles(c *Context, w http.ResponseWriter, r *http.Request) {
 			}
 
 			p.Sanitize(options)
+			p.ClearNonProfileFields()
 			profiles[k] = p
 		}
 
@@ -1185,6 +1196,14 @@ func updateActive(c *Context, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	ruser := UpdateActive(c, user, active)
+
+	if c.Err == nil {
+		w.Write([]byte(ruser.ToJson()))
+	}
+}
+
+func UpdateActive(c *Context, user *model.User, active bool) *model.User {
 	if active {
 		user.DeleteAt = 0
 	} else {
@@ -1193,7 +1212,7 @@ func updateActive(c *Context, w http.ResponseWriter, r *http.Request) {
 
 	if result := <-Srv.Store.User().Update(user, true); result.Err != nil {
 		c.Err = result.Err
-		return
+		return nil
 	} else {
 		c.LogAuditWithUserId(user.Id, fmt.Sprintf("active=%v", active))
 
@@ -1205,8 +1224,61 @@ func updateActive(c *Context, w http.ResponseWriter, r *http.Request) {
 		options := utils.SanitizeOptions
 		options["passwordupdate"] = false
 		ruser.Sanitize(options)
-		w.Write([]byte(ruser.ToJson()))
+		return ruser
 	}
+}
+
+func PermanentDeleteUser(c *Context, user *model.User) *model.AppError {
+	l4g.Warn("Attempting to permanently delete account %v id=%v", user.Email, user.Id)
+	c.Path = "/users/permanent_delete"
+	c.LogAuditWithUserId(user.Id, fmt.Sprintf("attempt userId=%v", user.Id))
+	c.LogAuditWithUserId("", fmt.Sprintf("attempt userId=%v", user.Id))
+	if user.IsInRole(model.ROLE_SYSTEM_ADMIN) {
+		l4g.Warn("You are deleting %v that is a system administrator.  You may need to set another account as the system administrator using the command line tools.", user.Email)
+	}
+
+	UpdateActive(c, user, false)
+
+	if result := <-Srv.Store.Session().PermanentDeleteSessionsByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.OAuth().PermanentDeleteAuthDataByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Webhook().PermanentDeleteIncomingByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Webhook().PermanentDeleteOutgoingByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Preference().PermanentDeleteByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Channel().PermanentDeleteMembersByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Post().PermanentDeleteByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.User().PermanentDelete(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	if result := <-Srv.Store.Audit().PermanentDeleteByUser(user.Id); result.Err != nil {
+		return result.Err
+	}
+
+	l4g.Warn("Permanently deleted account %v id=%v", user.Email, user.Id)
+	c.LogAuditWithUserId("", fmt.Sprintf("success userId=%v", user.Id))
+
+	return nil
 }
 
 func sendPasswordReset(c *Context, w http.ResponseWriter, r *http.Request) {
@@ -1483,16 +1555,31 @@ func updateUserNotify(c *Context, w http.ResponseWriter, r *http.Request) {
 }
 
 func getStatuses(c *Context, w http.ResponseWriter, r *http.Request) {
+	userIds := model.ArrayFromJson(r.Body)
+	if len(userIds) == 0 {
+		c.SetInvalidParam("getStatuses", "userIds")
+		return
+	}
 
 	if result := <-Srv.Store.User().GetProfiles(c.Session.TeamId); result.Err != nil {
 		c.Err = result.Err
 		return
 	} else {
-
 		profiles := result.Data.(map[string]*model.User)
 
 		statuses := map[string]string{}
 		for _, profile := range profiles {
+			found := false
+			for _, uid := range userIds {
+				if uid == profile.Id {
+					found = true
+				}
+			}
+
+			if !found {
+				continue
+			}
+
 			if profile.IsOffline() {
 				statuses[profile.Id] = model.USER_OFFLINE
 			} else if profile.IsAway() {

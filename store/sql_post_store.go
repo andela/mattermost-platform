@@ -30,7 +30,7 @@ func NewSqlPostStore(sqlStore *SqlStore) PostStore {
 		table.ColMap("Message").SetMaxSize(4000)
 		table.ColMap("Type").SetMaxSize(26)
 		table.ColMap("Hashtags").SetMaxSize(1000)
-		table.ColMap("Props").SetMaxSize(4000)
+		table.ColMap("Props")
 		table.ColMap("Filenames").SetMaxSize(4000)
 	}
 
@@ -38,6 +38,7 @@ func NewSqlPostStore(sqlStore *SqlStore) PostStore {
 }
 
 func (s SqlPostStore) UpgradeSchemaIfNeeded() {
+	s.RemoveColumnIfExists("Posts", "ImgCount") // remove after 1.3 release
 }
 
 func (s SqlPostStore) CreateIndexesIfNotExists() {
@@ -227,6 +228,99 @@ func (s SqlPostStore) Delete(postId string, time int64) StoreChannel {
 	return storeChannel
 }
 
+func (s SqlPostStore) permanentDelete(postId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		_, err := s.GetMaster().Exec("DELETE FROM Posts WHERE Id = :Id OR ParentId = :ParentId OR RootId = :RootId", map[string]interface{}{"Id": postId, "ParentId": postId, "RootId": postId})
+		if err != nil {
+			result.Err = model.NewAppError("SqlPostStore.Delete", "We couldn't delete the post", "id="+postId+", err="+err.Error())
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlPostStore) permanentDeleteAllCommentByUser(userId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		_, err := s.GetMaster().Exec("DELETE FROM Posts WHERE UserId = :UserId AND RootId != ''", map[string]interface{}{"UserId": userId})
+		if err != nil {
+			result.Err = model.NewAppError("SqlPostStore.permanentDeleteAllCommentByUser", "We couldn't delete the comments for user", "userId="+userId+", err="+err.Error())
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlPostStore) PermanentDeleteByUser(userId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		// First attempt to delete all the comments for a user
+		if r := <-s.permanentDeleteAllCommentByUser(userId); r.Err != nil {
+			result.Err = r.Err
+			storeChannel <- result
+			close(storeChannel)
+			return
+		}
+
+		// Now attempt to delete all the root posts for a user.  This will also
+		// delete all the comments for each post.
+		found := true
+		count := 0
+
+		for found {
+			var ids []string
+			_, err := s.GetMaster().Select(&ids, "SELECT Id FROM Posts WHERE UserId = :UserId LIMIT 1000", map[string]interface{}{"UserId": userId})
+			if err != nil {
+				result.Err = model.NewAppError("SqlPostStore.PermanentDeleteByUser.select", "We couldn't select the posts to delete for the user", "userId="+userId+", err="+err.Error())
+				storeChannel <- result
+				close(storeChannel)
+				return
+			} else {
+				found = false
+				for _, id := range ids {
+					found = true
+					if r := <-s.permanentDelete(id); r.Err != nil {
+						result.Err = r.Err
+						storeChannel <- result
+						close(storeChannel)
+						return
+					}
+				}
+			}
+
+			// This is a fail safe, give up if more than 10K messages
+			count = count + 1
+			if count >= 10 {
+				result.Err = model.NewAppError("SqlPostStore.PermanentDeleteByUser.toolarge", "We couldn't select the posts to delete for the user (too many), please re-run", "userId="+userId)
+				storeChannel <- result
+				close(storeChannel)
+				return
+			}
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
 func (s SqlPostStore) GetPosts(channelId string, offset int, limit int) StoreChannel {
 	storeChannel := make(StoreChannel)
 
@@ -320,6 +414,104 @@ func (s SqlPostStore) GetPostsSince(channelId string, time int64) StoreChannel {
 				if p.UpdateAt > time {
 					list.AddOrder(p.Id)
 				}
+			}
+
+			result.Data = list
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlPostStore) GetPostsBefore(channelId string, postId string, numPosts int, offset int) StoreChannel {
+	return s.getPostsAround(channelId, postId, numPosts, offset, true)
+}
+
+func (s SqlPostStore) GetPostsAfter(channelId string, postId string, numPosts int, offset int) StoreChannel {
+	return s.getPostsAround(channelId, postId, numPosts, offset, false)
+}
+
+func (s SqlPostStore) getPostsAround(channelId string, postId string, numPosts int, offset int, before bool) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		var direction string
+		var sort string
+		if before {
+			direction = "<"
+			sort = "DESC"
+		} else {
+			direction = ">"
+			sort = "ASC"
+		}
+
+		var posts []*model.Post
+		var parents []*model.Post
+		_, err1 := s.GetReplica().Select(&posts,
+			`(SELECT
+			    *
+			FROM
+			    Posts
+			WHERE
+				(CreateAt `+direction+` (SELECT CreateAt FROM Posts WHERE Id = :PostId)
+			        AND ChannelId = :ChannelId
+					AND DeleteAt = 0)
+			ORDER BY CreateAt `+sort+`
+			LIMIT :NumPosts
+			OFFSET :Offset)`,
+			map[string]interface{}{"ChannelId": channelId, "PostId": postId, "NumPosts": numPosts, "Offset": offset})
+		_, err2 := s.GetReplica().Select(&parents,
+			`(SELECT
+			    *
+			FROM
+			    Posts
+			WHERE
+			    Id
+			IN
+			    (SELECT * FROM (SELECT
+			        RootId
+			    FROM
+			        Posts
+			    WHERE
+					(CreateAt `+direction+` (SELECT CreateAt FROM Posts WHERE Id = :PostId)
+						AND ChannelId = :ChannelId
+						AND DeleteAt = 0)
+					ORDER BY CreateAt `+sort+`
+					LIMIT :NumPosts
+					OFFSET :Offset)
+			    temp_tab))
+			ORDER BY CreateAt DESC`,
+			map[string]interface{}{"ChannelId": channelId, "PostId": postId, "NumPosts": numPosts, "Offset": offset})
+
+		if err1 != nil {
+			result.Err = model.NewAppError("SqlPostStore.GetPostContext", "We couldn't get the posts for the channel", "channelId="+channelId+err1.Error())
+		} else if err2 != nil {
+			result.Err = model.NewAppError("SqlPostStore.GetPostContext", "We couldn't get the parent posts for the channel", "channelId="+channelId+err2.Error())
+		} else {
+
+			list := &model.PostList{Order: make([]string, 0, len(posts))}
+
+			// We need to flip the order if we selected backwards
+			if before {
+				for _, p := range posts {
+					list.AddPost(p)
+					list.AddOrder(p.Id)
+				}
+			} else {
+				l := len(posts)
+				for i := range posts {
+					list.AddPost(posts[l-i-1])
+					list.AddOrder(posts[l-i-1].Id)
+				}
+			}
+
+			for _, p := range parents {
+				list.AddPost(p)
 			}
 
 			result.Data = list
@@ -443,13 +635,6 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 
 		var posts []*model.Post
 
-		if utils.Cfg.SqlSettings.DriverName == model.DATABASE_DRIVER_POSTGRES {
-			// Parse text for wildcards
-			if wildcard, err := regexp.Compile("\\*($| )"); err == nil {
-				terms = wildcard.ReplaceAllLiteralString(terms, "* ")
-			}
-		}
-
 		searchQuery := `
 			SELECT
 				*
@@ -548,7 +733,7 @@ func (s SqlPostStore) Search(teamId string, userId string, params *model.SearchP
 
 		_, err := s.GetReplica().Select(&posts, searchQuery, queryParams)
 		if err != nil {
-			result.Err = model.NewAppError("SqlPostStore.Search", "We encounted an error while searching for posts", "teamId="+teamId+", err="+err.Error())
+			result.Err = model.NewAppError("SqlPostStore.Search", "We encountered an error while searching for posts", "teamId="+teamId+", err="+err.Error())
 		}
 
 		list := &model.PostList{Order: make([]string, 0, len(posts))}

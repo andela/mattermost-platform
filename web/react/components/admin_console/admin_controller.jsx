@@ -1,24 +1,25 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var AdminSidebar = require('./admin_sidebar.jsx');
-var AdminStore = require('../../stores/admin_store.jsx');
-var TeamStore = require('../../stores/team_store.jsx');
-var AsyncClient = require('../../utils/async_client.jsx');
-var LoadingScreen = require('../loading_screen.jsx');
+import AdminSidebar from './admin_sidebar.jsx';
+import AdminStore from '../../stores/admin_store.jsx';
+import TeamStore from '../../stores/team_store.jsx';
+import * as AsyncClient from '../../utils/async_client.jsx';
+import LoadingScreen from '../loading_screen.jsx';
+import * as Utils from '../../utils/utils.jsx';
 
-var EmailSettingsTab = require('./email_settings.jsx');
-var LogSettingsTab = require('./log_settings.jsx');
-var LogsTab = require('./logs.jsx');
-var FileSettingsTab = require('./image_settings.jsx');
-var PrivacySettingsTab = require('./privacy_settings.jsx');
-var RateSettingsTab = require('./rate_settings.jsx');
-var GitLabSettingsTab = require('./gitlab_settings.jsx');
-var SqlSettingsTab = require('./sql_settings.jsx');
-var TeamSettingsTab = require('./team_settings.jsx');
-var ServiceSettingsTab = require('./service_settings.jsx');
-var TeamUsersTab = require('./team_users.jsx');
-var TeamAnalyticsTab = require('./team_analytics.jsx');
+import EmailSettingsTab from './email_settings.jsx';
+import LogSettingsTab from './log_settings.jsx';
+import LogsTab from './logs.jsx';
+import FileSettingsTab from './image_settings.jsx';
+import PrivacySettingsTab from './privacy_settings.jsx';
+import RateSettingsTab from './rate_settings.jsx';
+import GitLabSettingsTab from './gitlab_settings.jsx';
+import SqlSettingsTab from './sql_settings.jsx';
+import TeamSettingsTab from './team_settings.jsx';
+import ServiceSettingsTab from './service_settings.jsx';
+import TeamUsersTab from './team_users.jsx';
+import TeamAnalyticsTab from './team_analytics.jsx';
 
 export default class AdminController extends React.Component {
     constructor(props) {
@@ -46,7 +47,8 @@ export default class AdminController extends React.Component {
         };
 
         if (!props.tab) {
-            history.replaceState(null, null, `/admin_console/${this.state.selected}`);
+            var tokenIndex = Utils.getUrlParameter('session_token_index');
+            history.replaceState(null, null, `/admin_console/${this.state.selected}?session_token_index=${tokenIndex}`);
         }
     }
 
@@ -188,3 +190,11 @@ export default class AdminController extends React.Component {
         );
     }
 }
+
+AdminController.defaultProps = {
+};
+
+AdminController.propTypes = {
+    tab: React.PropTypes.string,
+    teamId: React.PropTypes.string
+};

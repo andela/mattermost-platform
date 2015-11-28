@@ -41,8 +41,6 @@ func NewSqlUserStore(sqlStore *SqlStore) UserStore {
 }
 
 func (us SqlUserStore) UpgradeSchemaIfNeeded() {
-	// REMOVE AFTER 1.2 SHIP see PLT-828
-	us.CreateColumnIfNotExists("Users", "ThemeProps", "varchar(2000)", "character varying(2000)", "{}")
 }
 
 func (us SqlUserStore) CreateIndexesIfNotExists() {
@@ -118,7 +116,7 @@ func (us SqlUserStore) Update(user *model.User, allowActiveUpdate bool) StoreCha
 		}
 
 		if oldUserResult, err := us.GetMaster().Get(model.User{}, user.Id); err != nil {
-			result.Err = model.NewAppError("SqlUserStore.Update", "We encounted an error finding the account", "user_id="+user.Id+", "+err.Error())
+			result.Err = model.NewAppError("SqlUserStore.Update", "We encountered an error finding the account", "user_id="+user.Id+", "+err.Error())
 		} else if oldUserResult == nil {
 			result.Err = model.NewAppError("SqlUserStore.Update", "We couldn't find the existing account to update", "user_id="+user.Id)
 		} else {
@@ -140,7 +138,9 @@ func (us SqlUserStore) Update(user *model.User, allowActiveUpdate bool) StoreCha
 				user.DeleteAt = oldUser.DeleteAt
 			}
 
-			if user.Email != oldUser.Email {
+			if user.IsSSOUser() {
+				user.Email = oldUser.Email
+			} else if user.Email != oldUser.Email {
 				user.EmailVerified = false
 			}
 
@@ -157,11 +157,11 @@ func (us SqlUserStore) Update(user *model.User, allowActiveUpdate bool) StoreCha
 
 			if count, err := us.GetMaster().Update(user); err != nil {
 				if IsUniqueConstraintError(err.Error(), "Email", "users_email_teamid_key") {
-					result.Err = model.NewAppError("SqlUserStore.Update", "This email is already taken. Please choose another", "user_id="+user.Id+", "+err.Error())
+					result.Err = model.NewAppError("SqlUserStore.Update", "This email is already taken. Please choose another.", "user_id="+user.Id+", "+err.Error())
 				} else if IsUniqueConstraintError(err.Error(), "Username", "users_username_teamid_key") {
 					result.Err = model.NewAppError("SqlUserStore.Update", "This username is already taken. Please choose another.", "user_id="+user.Id+", "+err.Error())
 				} else {
-					result.Err = model.NewAppError("SqlUserStore.Update", "We encounted an error updating the account", "user_id="+user.Id+", "+err.Error())
+					result.Err = model.NewAppError("SqlUserStore.Update", "We encountered an error updating the account", "user_id="+user.Id+", "+err.Error())
 				}
 			} else if count != 1 {
 				result.Err = model.NewAppError("SqlUserStore.Update", "We couldn't update the account", fmt.Sprintf("user_id=%v, count=%v", user.Id, count))
@@ -306,7 +306,7 @@ func (us SqlUserStore) Get(id string) StoreChannel {
 		result := StoreResult{}
 
 		if obj, err := us.GetReplica().Get(model.User{}, id); err != nil {
-			result.Err = model.NewAppError("SqlUserStore.Get", "We encounted an error finding the account", "user_id="+id+", "+err.Error())
+			result.Err = model.NewAppError("SqlUserStore.Get", "We encountered an error finding the account", "user_id="+id+", "+err.Error())
 		} else if obj == nil {
 			result.Err = model.NewAppError("SqlUserStore.Get", "We couldn't find the existing account", "user_id="+id)
 		} else {
@@ -351,7 +351,7 @@ func (us SqlUserStore) GetProfiles(teamId string) StoreChannel {
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, "SELECT * FROM Users WHERE TeamId = :TeamId", map[string]interface{}{"TeamId": teamId}); err != nil {
-			result.Err = model.NewAppError("SqlUserStore.GetProfiles", "We encounted an error while finding user profiles", err.Error())
+			result.Err = model.NewAppError("SqlUserStore.GetProfiles", "We encountered an error while finding user profiles", err.Error())
 		} else {
 
 			userMap := make(map[string]*model.User)
@@ -382,7 +382,7 @@ func (us SqlUserStore) GetSystemAdminProfiles() StoreChannel {
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, "SELECT * FROM Users WHERE Roles = :Roles", map[string]interface{}{"Roles": "system_admin"}); err != nil {
-			result.Err = model.NewAppError("SqlUserStore.GetSystemAdminProfiles", "We encounted an error while finding user profiles", err.Error())
+			result.Err = model.NewAppError("SqlUserStore.GetSystemAdminProfiles", "We encountered an error while finding user profiles", err.Error())
 		} else {
 
 			userMap := make(map[string]*model.User)
@@ -498,7 +498,7 @@ func (us SqlUserStore) GetForExport(teamId string) StoreChannel {
 		var users []*model.User
 
 		if _, err := us.GetReplica().Select(&users, "SELECT * FROM Users WHERE TeamId = :TeamId", map[string]interface{}{"TeamId": teamId}); err != nil {
-			result.Err = model.NewAppError("SqlUserStore.GetProfiles", "We encounted an error while finding user profiles", err.Error())
+			result.Err = model.NewAppError("SqlUserStore.GetProfiles", "We encountered an error while finding user profiles", err.Error())
 		} else {
 			for _, u := range users {
 				u.Password = ""
@@ -546,6 +546,24 @@ func (us SqlUserStore) GetTotalActiveUsersCount() StoreChannel {
 			result.Err = model.NewAppError("SqlUserStore.GetTotalActiveUsersCount", "We could not count the users", err.Error())
 		} else {
 			result.Data = count
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (us SqlUserStore) PermanentDelete(userId string) StoreChannel {
+
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		if _, err := us.GetMaster().Exec("DELETE FROM Users WHERE Id = :UserId", map[string]interface{}{"UserId": userId}); err != nil {
+			result.Err = model.NewAppError("SqlUserStore.GetByEmail", "We couldn't delete the existing account", "userId="+userId+", "+err.Error())
 		}
 
 		storeChannel <- result

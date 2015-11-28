@@ -9,29 +9,37 @@ body {
   position: relative;
   height: 100%;
   &.white {
-    background: #fff;
-    > .container-fluid {
-      overflow: auto;
-    }
-    .inner__wrap {
-      > .row.content {
-        min-height: 100%;
-        margin-bottom: -89px;
+      background: #fff;
+      > .container-fluid {
+          overflow: auto;
       }
-    }
+      .inner__wrap {
+          > .row.content {
+              min-height: 100%;
+              margin-bottom: -89px;
+          }
+      }
   }
-  .inner__wrap {
+}
+
+.inner__wrap {
     height: 100%;
     > .row.main {
-      height: 100%;
-      position: relative;
+        height: 100%;
+        position: relative;
     }
-  }
-  > .container-fluid {
+}
+
+.container-fluid {
+    @include legacy-pie-clearfix;
+    height: 100%;
+    position: relative;
+}
+
+.channel-view {
     @include clearfix;
     height: 100%;
     position: relative;
-  }
 }
 
 img {
@@ -77,6 +85,7 @@ img {
 a {
   word-break: break-word;
   color: $primary-color;
+  cursor: pointer;
 }
 
 a:focus, a:hover {
@@ -113,6 +122,10 @@ a:focus, a:hover {
   }
 }
 
+select {
+  -webkit-appearance: none;
+}
+
 .form-control {
   @include border-radius(2px);
   &:focus {
@@ -124,9 +137,6 @@ a:focus, a:hover {
   }
   &.no-resize {
     resize: none;
-  }
-  &.min-height {
-    min-height: 100px;
   }
 }
 

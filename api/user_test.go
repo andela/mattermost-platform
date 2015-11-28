@@ -661,12 +661,6 @@ func TestUserUpdateRoles(t *testing.T) {
 		t.Fatal("Should have errored, not admin")
 	}
 
-	name := make(map[string]string)
-	name["new_name"] = "NewName"
-	if _, err := Client.UpdateTeamDisplayName(name); err == nil {
-		t.Fatal("should have errored - user not admin yet")
-	}
-
 	team2 := &model.Team{DisplayName: "Name", Name: "z-z-" + model.NewId() + "a", Email: "test@nowhere.com", Type: model.TEAM_OPEN}
 	team2 = Client.Must(Client.CreateTeam(team2)).Data.(*model.Team)
 
@@ -706,12 +700,6 @@ func TestUserUpdateRoles(t *testing.T) {
 		if result.Data.(*model.User).Roles != "admin" {
 			t.Fatal("Roles did not update properly")
 		}
-	}
-
-	Client.LoginByEmail(team.Name, user2.Email, "pwd")
-
-	if _, err := Client.UpdateTeamDisplayName(name); err != nil {
-		t.Fatal(err)
 	}
 }
 
@@ -777,6 +765,45 @@ func TestUserUpdateActive(t *testing.T) {
 			t.Fatal("active did not update properly true")
 		}
 	}
+}
+
+func TestUserPermDelete(t *testing.T) {
+	Setup()
+
+	team := &model.Team{DisplayName: "Name", Name: "z-z-" + model.NewId() + "a", Email: "test@nowhere.com", Type: model.TEAM_OPEN}
+	team = Client.Must(Client.CreateTeam(team)).Data.(*model.Team)
+
+	user1 := &model.User{TeamId: team.Id, Email: model.NewId() + "corey@test.com", Nickname: "Corey Hulen", Password: "pwd"}
+	user1 = Client.Must(Client.CreateUser(user1, "")).Data.(*model.User)
+	store.Must(Srv.Store.User().VerifyEmail(user1.Id))
+
+	Client.LoginByEmail(team.Name, user1.Email, "pwd")
+
+	channel1 := &model.Channel{DisplayName: "TestGetPosts", Name: "a" + model.NewId() + "a", Type: model.CHANNEL_OPEN, TeamId: team.Id}
+	channel1 = Client.Must(Client.CreateChannel(channel1)).Data.(*model.Channel)
+
+	post1 := &model.Post{ChannelId: channel1.Id, Message: "search for post1"}
+	post1 = Client.Must(Client.CreatePost(post1)).Data.(*model.Post)
+
+	post2 := &model.Post{ChannelId: channel1.Id, Message: "search for post2"}
+	post2 = Client.Must(Client.CreatePost(post2)).Data.(*model.Post)
+
+	post3 := &model.Post{ChannelId: channel1.Id, Message: "#hashtag search for post3"}
+	post3 = Client.Must(Client.CreatePost(post3)).Data.(*model.Post)
+
+	post4 := &model.Post{ChannelId: channel1.Id, Message: "hashtag for post4"}
+	post4 = Client.Must(Client.CreatePost(post4)).Data.(*model.Post)
+
+	c := &Context{}
+	c.RequestId = model.NewId()
+	c.IpAddress = "test"
+
+	err := PermanentDeleteUser(c, user1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	Client.ClearOAuthToken()
 }
 
 func TestSendPasswordReset(t *testing.T) {
@@ -1032,9 +1059,15 @@ func TestStatuses(t *testing.T) {
 	ruser := Client.Must(Client.CreateUser(&user, "")).Data.(*model.User)
 	store.Must(Srv.Store.User().VerifyEmail(ruser.Id))
 
+	user2 := model.User{TeamId: rteam.Data.(*model.Team).Id, Email: strings.ToLower(model.NewId()) + "corey@test.com", Nickname: "Corey Hulen", Password: "pwd"}
+	ruser2 := Client.Must(Client.CreateUser(&user2, "")).Data.(*model.User)
+	store.Must(Srv.Store.User().VerifyEmail(ruser2.Id))
+
 	Client.LoginByEmail(team.Name, user.Email, user.Password)
 
-	r1, err := Client.GetStatuses()
+	userIds := []string{ruser2.Id}
+
+	r1, err := Client.GetStatuses(userIds)
 	if err != nil {
 		t.Fatal(err)
 	}

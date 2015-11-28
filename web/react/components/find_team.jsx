@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var utils = require('../utils/utils.jsx');
-var client = require('../utils/client.jsx');
+import * as utils from '../utils/utils.jsx';
+import * as client from '../utils/client.jsx';
 
 export default class FindTeam extends React.Component {
     constructor(props) {
@@ -50,7 +50,7 @@ export default class FindTeam extends React.Component {
         if (this.state.sent) {
             return (
                 <div>
-                    <h4>{'Find Your team'}</h4>
+                    <h4>{'Find Your teams'}</h4>
                     <p>{'An email was sent with links to any teams to which you are a member.'}</p>
                 </div>
             );

@@ -1,9 +1,13 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var UserStore = require('../stores/user_store.jsx');
-var client = require('../utils/client.jsx');
-var utils = require('../utils/utils.jsx');
+import TeamMembersModal from './team_members_modal.jsx';
+import ToggleModalButton from './toggle_modal_button.jsx';
+import UserSettingsModal from './user_settings/user_settings_modal.jsx';
+import UserStore from '../stores/user_store.jsx';
+import * as client from '../utils/client.jsx';
+import * as EventHelpers from '../dispatcher/event_helpers.jsx';
+import * as utils from '../utils/utils.jsx';
 
 export default class SidebarRightMenu extends React.Component {
     componentDidMount() {
@@ -14,6 +18,10 @@ export default class SidebarRightMenu extends React.Component {
         super(props);
 
         this.handleLogoutClick = this.handleLogoutClick.bind(this);
+
+        this.state = {
+            showUserSettingsModal: false
+        };
     }
 
     handleLogoutClick(e) {
@@ -37,22 +45,24 @@ export default class SidebarRightMenu extends React.Component {
 
             inviteLink = (
                 <li>
-                    <a href='#'
-                        data-toggle='modal'
-                        data-target='#invite_member'
-                    ><i className='glyphicon glyphicon-user'></i>Invite New Member</a>
+                    <a
+                        href='#'
+                        onClick={EventHelpers.showInviteMemberModal}
+                    >
+                        <i className='fa fa-user'></i>Invite New Member
+                    </a>
                 </li>
             );
 
             if (this.props.teamType === 'O') {
                 teamLink = (
                     <li>
-                        <a href='#'
-                            data-toggle='modal'
-                            data-target='#get_link'
-                            data-title='Team Invite'
-                            data-value={utils.getWindowLocationOrigin() + '/signup_user_complete/?id=' + currentUser.team_id}
-                        ><i className='glyphicon glyphicon-link'></i>Get Team Invite Link</a>
+                        <a
+                            href='#'
+                            onClick={EventHelpers.showGetTeamInviteLinkModal}
+                        >
+                            <i className='glyphicon glyphicon-link'></i>{'Get Team Invite Link'}
+                        </a>
                     </li>
                 );
             }
@@ -65,17 +75,14 @@ export default class SidebarRightMenu extends React.Component {
                         href='#'
                         data-toggle='modal'
                         data-target='#team_settings'
-                    ><i className='glyphicon glyphicon-globe'></i>Team Settings</a>
+                    ><i className='fa fa-globe'></i>Team Settings</a>
                 </li>
             );
             manageLink = (
                 <li>
-                    <a
-                        href='#'
-                        data-toggle='modal'
-                        data-target='#team_members'
-                    >
-                    <i className='glyphicon glyphicon-wrench'></i>Manage Members</a>
+                    <ToggleModalButton dialogType={TeamMembersModal}>
+                        <i className='fa fa-users'></i>{'Manage Members'}
+                    </ToggleModalButton>
                 </li>
             );
         }
@@ -86,7 +93,7 @@ export default class SidebarRightMenu extends React.Component {
                     <a
                         href={'/admin_console?' + utils.getSessionIndex()}
                     >
-                    <i className='glyphicon glyphicon-wrench'></i>System Console</a>
+                    <i className='fa fa-wrench'></i>System Console</a>
                 </li>
             );
         }
@@ -114,9 +121,11 @@ export default class SidebarRightMenu extends React.Component {
                         <li>
                             <a
                                 href='#'
-                                data-toggle='modal'
-                                data-target='#user_settings'
-                            ><i className='glyphicon glyphicon-cog'></i>Account Settings</a></li>
+                                onClick={() => this.setState({showUserSettingsModal: true})}
+                            >
+                                <i className='fa fa-cog'></i>Account Settings
+                            </a>
+                        </li>
                         {teamSettingsLink}
                         {inviteLink}
                         {teamLink}
@@ -126,20 +135,24 @@ export default class SidebarRightMenu extends React.Component {
                             <a
                                 href='#'
                                 onClick={this.handleLogoutClick}
-                            ><i className='glyphicon glyphicon-log-out'></i>Logout</a></li>
+                            ><i className='fa fa-sign-out'></i>Logout</a></li>
                         <li className='divider'></li>
                         <li>
                             <a
                                 target='_blank'
-                                href='/static/help/configure_links.html'
-                            ><i className='glyphicon glyphicon-question-sign'></i>Help</a></li>
+                                href='/static/help/help.html'
+                            ><i className='fa fa-question'></i>Help</a></li>
                         <li>
                             <a
                                 target='_blank'
-                                href='/static/help/configure_links.html'
-                            ><i className='glyphicon glyphicon-earphone'></i>Report a Problem</a></li>
+                                href='/static/help/report_problem.html'
+                            ><i className='fa fa-phone'></i>Report a Problem</a></li>
                     </ul>
                 </div>
+                <UserSettingsModal
+                    show={this.state.showUserSettingsModal}
+                    onModalDismissed={() => this.setState({showUserSettingsModal: false})}
+                />
             </div>
         );
     }

@@ -3,38 +3,38 @@
     width: 400px;
     height: 100%;
     right: 0px;
-    padding: 0 0 2em 0;
+    padding: 0;
     background: #fff;
     @include single-transition(transform, 0.5s, ease);
     right: -320px;
+
     &.move--left {
         right: 0;
     }
+
+    .sidebar--right__content {
+        height: 100%;
+        @include display-flex;
+        @include flex-direction(column);
+    }
+
     .sidebar--right__back {
-        color: #666;
-        width: 20px;
+        color: inherit;
+        @include opacity(0.8);
+        width: 30px;
         text-align: center;
-        margin: 0 0 0 -6px;
-        font-size: 12px;
+        margin: 0 0 0 -14px;
+        font-size: 13px;
         display: inline-block;
     }
     .sidebar-right__body {
+        @include flex(1 1 auto);
         border-left: $border-gray;
         border-top: $border-gray;
-    }
-    .post {
-        .post-header {
-            .post-header-col {
-                &.post-header__reply {
-                    min-width: 30px;
-                    text-align: right;
-                    float: right;
-                }
-            }
-        }
-        .post-body {
-            margin: 3px 0 0;
-        }
+        @include display-flex;
+        @include flex-direction(column);
+        height: calc(100% - 56px);
+        @include border-radius(2px 0 0 0);
     }
     .sidebar__overlay {
         width: 100%;
@@ -75,18 +75,23 @@
         height: 44px;
         padding: 0 1em;
         line-height: 44px;
-        background: #F5F5F5;
+        @include flex(0 0 44px);
         border-bottom: $border-gray;
     }
     .sidebar--right__subheader {
         font-size: 1em;
-        text-transform: uppercase;
-        color: #999;
-        font-weight: 400;
-        color: #888;
-        height: 44px;
-        line-height: 44px;
-        padding: 0 1em;
+        padding: 1em 1em 0;
+        h4 {
+            font-size: 1em;
+        }
+        ul {
+            @include opacity(0.7);
+            padding: 10px 0 0 30px;
+        }
+        li {
+            font-size: 0.95em;
+            padding-bottom: 10px;
+        }
     }
 }
 

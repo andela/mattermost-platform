@@ -50,6 +50,9 @@ type TeamStore interface {
 	GetByName(name string) StoreChannel
 	GetTeamsForEmail(domain string) StoreChannel
 	GetAll() StoreChannel
+	GetAllTeamListing() StoreChannel
+	GetByInviteId(inviteId string) StoreChannel
+	PermanentDelete(teamId string) StoreChannel
 }
 
 type ChannelStore interface {
@@ -58,6 +61,7 @@ type ChannelStore interface {
 	Update(channel *model.Channel) StoreChannel
 	Get(id string) StoreChannel
 	Delete(channelId string, time int64) StoreChannel
+	PermanentDeleteByTeam(teamId string) StoreChannel
 	GetByName(team_id string, domain string) StoreChannel
 	GetChannels(teamId string, userId string) StoreChannel
 	GetMoreChannels(teamId string, userId string) StoreChannel
@@ -68,7 +72,9 @@ type ChannelStore interface {
 	UpdateMember(member *model.ChannelMember) StoreChannel
 	GetMembers(channelId string) StoreChannel
 	GetMember(channelId string, userId string) StoreChannel
+	GetMemberCount(channelId string) StoreChannel
 	RemoveMember(channelId string, userId string) StoreChannel
+	PermanentDeleteMembersByUser(userId string) StoreChannel
 	GetExtraMembers(channelId string, limit int) StoreChannel
 	CheckPermissionsTo(teamId string, channelId string, userId string) StoreChannel
 	CheckOpenChannelPermissions(teamId string, channelId string) StoreChannel
@@ -83,7 +89,10 @@ type PostStore interface {
 	Update(post *model.Post, newMessage string, newHashtags string) StoreChannel
 	Get(id string) StoreChannel
 	Delete(postId string, time int64) StoreChannel
+	PermanentDeleteByUser(userId string) StoreChannel
 	GetPosts(channelId string, offset int, limit int) StoreChannel
+	GetPostsBefore(channelId string, postId string, numPosts int, offset int) StoreChannel
+	GetPostsAfter(channelId string, postId string, numPosts int, offset int) StoreChannel
 	GetPostsSince(channelId string, time int64) StoreChannel
 	GetEtag(channelId string) StoreChannel
 	Search(teamId string, userId string, params *model.SearchParams) StoreChannel
@@ -113,6 +122,7 @@ type UserStore interface {
 	GetTotalUsersCount() StoreChannel
 	GetTotalActiveUsersCount() StoreChannel
 	GetSystemAdminProfiles() StoreChannel
+	PermanentDelete(userId string) StoreChannel
 }
 
 type SessionStore interface {
@@ -121,6 +131,7 @@ type SessionStore interface {
 	GetSessions(userId string) StoreChannel
 	Remove(sessionIdOrToken string) StoreChannel
 	RemoveAllSessionsForTeam(teamId string) StoreChannel
+	PermanentDeleteSessionsByUser(teamId string) StoreChannel
 	UpdateLastActivityAt(sessionId string, time int64) StoreChannel
 	UpdateRoles(userId string, roles string) StoreChannel
 }
@@ -128,6 +139,7 @@ type SessionStore interface {
 type AuditStore interface {
 	Save(audit *model.Audit) StoreChannel
 	Get(user_id string, limit int) StoreChannel
+	PermanentDeleteByUser(userId string) StoreChannel
 }
 
 type OAuthStore interface {
@@ -138,6 +150,7 @@ type OAuthStore interface {
 	SaveAuthData(authData *model.AuthData) StoreChannel
 	GetAuthData(code string) StoreChannel
 	RemoveAuthData(code string) StoreChannel
+	PermanentDeleteAuthDataByUser(userId string) StoreChannel
 	SaveAccessData(accessData *model.AccessData) StoreChannel
 	GetAccessData(token string) StoreChannel
 	GetAccessDataByAuthCode(authCode string) StoreChannel
@@ -156,12 +169,14 @@ type WebhookStore interface {
 	GetIncomingByUser(userId string) StoreChannel
 	GetIncomingByChannel(channelId string) StoreChannel
 	DeleteIncoming(webhookId string, time int64) StoreChannel
+	PermanentDeleteIncomingByUser(userId string) StoreChannel
 	SaveOutgoing(webhook *model.OutgoingWebhook) StoreChannel
 	GetOutgoing(id string) StoreChannel
 	GetOutgoingByCreator(userId string) StoreChannel
 	GetOutgoingByChannel(channelId string) StoreChannel
 	GetOutgoingByTeam(teamId string) StoreChannel
 	DeleteOutgoing(webhookId string, time int64) StoreChannel
+	PermanentDeleteOutgoingByUser(userId string) StoreChannel
 	UpdateOutgoing(hook *model.OutgoingWebhook) StoreChannel
 }
 
@@ -170,4 +185,6 @@ type PreferenceStore interface {
 	Get(userId string, category string, name string) StoreChannel
 	GetCategory(userId string, category string) StoreChannel
 	GetAll(userId string) StoreChannel
+	PermanentDeleteByUser(userId string) StoreChannel
+	IsFeatureEnabled(feature, userId string) StoreChannel
 }

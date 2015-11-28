@@ -1,16 +1,21 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var Utils = require('../utils/utils.jsx');
+import * as Utils from '../utils/utils.jsx';
 
 export default class FilePreview extends React.Component {
     constructor(props) {
         super(props);
 
         this.handleRemove = this.handleRemove.bind(this);
-
-        this.state = {};
     }
+
+    componentDidUpdate() {
+        if (this.props.uploadsInProgress.length > 0) {
+            ReactDOM.findDOMNode(this.refs[this.props.uploadsInProgress[0]]).scrollIntoView();
+        }
+    }
+
     handleRemove(e) {
         var previewDiv = e.target.parentNode.parentNode;
 
@@ -20,9 +25,10 @@ export default class FilePreview extends React.Component {
             this.props.onRemove(previewDiv.getAttribute('data-client-id'));
         }
     }
+
     render() {
         var previews = [];
-        this.props.files.forEach(function setupPreview(fullFilename) {
+        this.props.files.forEach((fullFilename) => {
             var filename = fullFilename;
             var originalFilename = filename;
             var filenameSplit = filename.split('.');
@@ -72,11 +78,12 @@ export default class FilePreview extends React.Component {
                     </div>
                 );
             }
-        }.bind(this));
+        });
 
-        this.props.uploadsInProgress.forEach(function addUploadsInProgress(clientId) {
+        this.props.uploadsInProgress.forEach((clientId) => {
             previews.push(
                 <div
+                    ref={clientId}
                     key={clientId}
                     className='preview-div'
                     data-client-id={clientId}
@@ -93,7 +100,7 @@ export default class FilePreview extends React.Component {
                     </a>
                 </div>
             );
-        }.bind(this));
+        });
 
         return (
             <div className='preview-container'>
@@ -104,8 +111,8 @@ export default class FilePreview extends React.Component {
 }
 
 FilePreview.defaultProps = {
-    files: null,
-    uploadsInProgress: null
+    files: [],
+    uploadsInProgress: []
 };
 FilePreview.propTypes = {
     onRemove: React.PropTypes.func.isRequired,

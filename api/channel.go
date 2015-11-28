@@ -205,9 +205,11 @@ func updateChannel(c *Context, w http.ResponseWriter, r *http.Request) {
 		}
 
 		if oldChannel.Name == model.DEFAULT_CHANNEL {
-			c.Err = model.NewAppError("updateChannel", "Cannot update the default channel "+model.DEFAULT_CHANNEL, "")
-			c.Err.StatusCode = http.StatusForbidden
-			return
+			if (len(channel.Name) > 0 && channel.Name != oldChannel.Name) || (len(channel.Type) > 0 && channel.Type != oldChannel.Type) {
+				c.Err = model.NewAppError("updateChannel", "Tried to perform an invalid update of the default channel "+model.DEFAULT_CHANNEL, "")
+				c.Err.StatusCode = http.StatusForbidden
+				return
+			}
 		}
 
 		oldChannel.Header = channel.Header
@@ -707,6 +709,7 @@ func getChannelExtraInfo(c *Context, w http.ResponseWriter, r *http.Request) {
 
 	scm := Srv.Store.Channel().GetMember(id, c.Session.UserId)
 	ecm := Srv.Store.Channel().GetExtraMembers(id, 20)
+	ccm := Srv.Store.Channel().GetMemberCount(id)
 
 	if cmresult := <-scm; cmresult.Err != nil {
 		c.Err = cmresult.Err
@@ -714,9 +717,13 @@ func getChannelExtraInfo(c *Context, w http.ResponseWriter, r *http.Request) {
 	} else if ecmresult := <-ecm; ecmresult.Err != nil {
 		c.Err = ecmresult.Err
 		return
+	} else if ccmresult := <-ccm; ccmresult.Err != nil {
+		c.Err = ccmresult.Err
+		return
 	} else {
 		member := cmresult.Data.(model.ChannelMember)
 		extraMembers := ecmresult.Data.([]model.ExtraMember)
+		memberCount := ccmresult.Data.(int64)
 
 		if !c.HasPermissionsToTeam(channel.TeamId, "getChannelExtraInfo") {
 			return
@@ -732,7 +739,7 @@ func getChannelExtraInfo(c *Context, w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data := model.ChannelExtra{Id: channel.Id, Members: extraMembers}
+		data := model.ChannelExtra{Id: channel.Id, Members: extraMembers, MemberCount: memberCount}
 		w.Header().Set(model.HEADER_ETAG_SERVER, extraEtag)
 		w.Header().Set("Expires", "-1")
 		w.Write([]byte(data.ToJson()))

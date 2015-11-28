@@ -1,55 +1,54 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var utils = require('../utils/utils.jsx');
-var Client = require('../utils/client.jsx');
-var UserStore = require('../stores/user_store.jsx');
-var ConfirmModal = require('./confirm_modal.jsx');
+import * as utils from '../utils/utils.jsx';
+import Constants from '../utils/constants.jsx';
+const ActionTypes = Constants.ActionTypes;
+import * as Client from '../utils/client.jsx';
+import * as EventHelpers from '../dispatcher/event_helpers.jsx';
+import ModalStore from '../stores/modal_store.jsx';
+import UserStore from '../stores/user_store.jsx';
+import TeamStore from '../stores/team_store.jsx';
+import ConfirmModal from './confirm_modal.jsx';
+
+const Modal = ReactBootstrap.Modal;
 
 export default class InviteMemberModal extends React.Component {
     constructor(props) {
         super(props);
 
+        this.handleToggle = this.handleToggle.bind(this);
         this.handleSubmit = this.handleSubmit.bind(this);
+        this.handleHide = this.handleHide.bind(this);
         this.addInviteFields = this.addInviteFields.bind(this);
         this.clearFields = this.clearFields.bind(this);
         this.removeInviteFields = this.removeInviteFields.bind(this);
+        this.showGetTeamInviteLinkModal = this.showGetTeamInviteLinkModal.bind(this);
 
         this.state = {
+            show: false,
             inviteIds: [0],
             idCount: 0,
             emailErrors: {},
             firstNameErrors: {},
             lastNameErrors: {},
-            emailEnabled: global.window.mm_config.SendEmailNotifications === 'true'
+            emailEnabled: global.window.mm_config.SendEmailNotifications === 'true',
+            showConfirmModal: false,
+            isSendingEmails: false
         };
     }
 
     componentDidMount() {
-        var self = this;
-        $('#invite_member').on('hide.bs.modal', function hide(e) {
-            if ($('#invite_member').attr('data-confirm') === 'true') {
-                $('#invite_member').attr('data-confirm', 'false');
-                return;
-            }
+        ModalStore.addModalListener(ActionTypes.TOGGLE_INVITE_MEMBER_MODAL, this.handleToggle);
+    }
 
-            var notEmpty = false;
-            for (var i = 0; i < self.state.inviteIds.length; i++) {
-                var index = self.state.inviteIds[i];
-                if (ReactDOM.findDOMNode(self.refs['email' + index]).value.trim() !== '') {
-                    notEmpty = true;
-                    break;
-                }
-            }
+    componentWillUnmount() {
+        ModalStore.removeModalListener(ActionTypes.TOGGLE_INVITE_MEMBER_MODAL, this.handleToggle);
+    }
 
-            if (notEmpty) {
-                $('#confirm_invite_modal').modal('show');
-                e.preventDefault();
-            }
-        });
-
-        $('#invite_member').on('hidden.bs.modal', function show() {
-            self.clearFields();
+    handleToggle(value) {
+        this.setState({
+            show: value
         });
     }
 
@@ -93,25 +92,62 @@ export default class InviteMemberModal extends React.Component {
         var data = {};
         data.invites = invites;
 
-        Client.inviteMembers(data,
-            function success() {
-                $(ReactDOM.findDOMNode(this.refs.modal)).attr('data-confirm', 'true');
-                $(ReactDOM.findDOMNode(this.refs.modal)).modal('hide');
-            }.bind(this),
-            function fail(err) {
+        this.setState({isSendingEmails: true});
+
+        Client.inviteMembers(
+            data,
+            () => {
+                this.handleHide(false);
+                this.setState({isSendingEmails: false});
+            },
+            (err) => {
                 if (err.message === 'This person is already on your team') {
                     emailErrors[err.detailed_error] = err.message;
                     this.setState({emailErrors: emailErrors});
                 } else {
                     this.setState({serverError: err.message});
                 }
-            }.bind(this)
+
+                this.setState({isSendingEmails: false});
+            }
         );
     }
 
-    componentDidUpdate() {
-        $(ReactDOM.findDOMNode(this.refs.modalBody)).css('max-height', $(window).height() - 200);
-        $(ReactDOM.findDOMNode(this.refs.modalBody)).css('overflow-y', 'scroll');
+    handleHide(requireConfirm) {
+        if (requireConfirm) {
+            var notEmpty = false;
+            for (var i = 0; i < this.state.inviteIds.length; i++) {
+                var index = this.state.inviteIds[i];
+                if (ReactDOM.findDOMNode(this.refs['email' + index]).value.trim() !== '') {
+                    notEmpty = true;
+                    break;
+                }
+            }
+
+            if (notEmpty) {
+                this.setState({
+                    showConfirmModal: true
+                });
+
+                return;
+            }
+        }
+
+        this.clearFields();
+
+        this.setState({
+            show: false,
+            showConfirmModal: false
+        });
+    }
+
+    componentDidUpdate(prevProps, prevState) {
+        if (!prevState.show && this.state.show) {
+            $(ReactDOM.findDOMNode(this.refs.modalBody)).css('max-height', $(window).height() - 300);
+            if ($(window).width() > 768) {
+                $(ReactDOM.findDOMNode(this.refs.modalBody)).perfectScrollbar();
+            }
+        }
     }
 
     addInviteFields() {
@@ -151,6 +187,12 @@ export default class InviteMemberModal extends React.Component {
             inviteIds.push(++count);
         }
         this.setState({inviteIds: inviteIds, idCount: count});
+    }
+
+    showGetTeamInviteLinkModal() {
+        this.handleHide(false);
+
+        EventHelpers.showGetTeamInviteLinkModal();
     }
 
     render() {
@@ -261,11 +303,6 @@ export default class InviteMemberModal extends React.Component {
             var content = null;
             var sendButton = null;
 
-            var sendButtonLabel = 'Send Invitation';
-            if (this.state.inviteIds.length > 1) {
-                sendButtonLabel = 'Send Invitations';
-            }
-
             if (this.state.emailEnabled) {
                 content = (
                     <div>
@@ -281,37 +318,40 @@ export default class InviteMemberModal extends React.Component {
                     </div>
                 );
 
-                sendButton =
-                    (
-                        <button
-                            onClick={this.handleSubmit}
-                            type='button'
-                            className='btn btn-primary'
-                        >{sendButtonLabel}</button>
+                var sendButtonLabel = 'Send Invitation';
+                if (this.state.isSendingEmails) {
+                    sendButtonLabel = (
+                        <span><i className='fa fa-spinner fa-spin' />{' Sending'}</span>
                     );
+                } else if (this.state.inviteIds.length > 1) {
+                    sendButtonLabel = 'Send Invitations';
+                }
+
+                sendButton = (
+                    <button
+                        onClick={this.handleSubmit}
+                        type='button'
+                        className='btn btn-primary'
+                        disabled={this.state.isSendingEmails}
+                    >
+                        {sendButtonLabel}
+                    </button>
+                );
             } else {
                 var teamInviteLink = null;
-                if (currentUser && this.props.teamType === 'O') {
-                    var linkUrl = utils.getWindowLocationOrigin() + '/signup_user_complete/?id=' + currentUser.team_id;
-                    var link =
-                        (
-                            <a
-                                href='#'
-                                data-toggle='modal'
-                                data-target='#get_link'
-                                data-title='Team Invite'
-                                data-value={linkUrl}
-                                onClick={
-                                    function click() {
-                                        $('#invite_member').modal('hide');
-                                    }
-                                }
-                            >Team Invite Link</a>
+                if (currentUser && TeamStore.getCurrent().type === 'O') {
+                    var link = (
+                        <a
+                            href='#'
+                            onClick={this.showGetTeamInviteLinkModal}
+                        >
+                            {'Team Invite Link'}
+                        </a>
                     );
 
                     teamInviteLink = (
                         <p>
-                            You can also invite people using the {link}.
+                            {'You can also invite people using the '}{link}{'.'}
                         </p>
                     );
                 }
@@ -326,64 +366,49 @@ export default class InviteMemberModal extends React.Component {
 
             return (
                 <div>
-                    <div
-                        className='modal fade'
-                        ref='modal'
-                        id='invite_member'
-                        tabIndex='-1'
-                        role='dialog'
-                        aria-hidden='true'
+                    <Modal
+                        dialogClassName='modal-invite-member'
+                        show={this.state.show}
+                        onHide={this.handleHide.bind(this, true)}
+                        enforceFocus={!this.state.showConfirmModal}
+                        backdrop={this.state.isSendingEmails ? 'static' : true}
                     >
-                       <div className='modal-dialog'>
-                          <div className='modal-content'>
-                            <div className='modal-header'>
+                        <Modal.Header closeButton={!this.state.isSendingEmails}>
+                            <Modal.Title>{'Invite New Member'}</Modal.Title>
+                        </Modal.Header>
+                        <Modal.Body ref='modalBody'>
+                            <form role='form'>
+                                {inviteSections}
+                            </form>
+                            {content}
+                        </Modal.Body>
+                        <Modal.Footer>
                             <button
                                 type='button'
-                                className='close'
-                                data-dismiss='modal'
-                                aria-label='Close'
+                                className='btn btn-default'
+                                onClick={this.handleHide.bind(this, true)}
+                                disabled={this.state.isSendingEmails}
                             >
-                                <span aria-hidden='true'>×</span>
+                                {'Cancel'}
                             </button>
-                            <h4
-                                className='modal-title'
-                                id='myModalLabel'
-                            >Invite New Member</h4>
-                            </div>
-                            <div
-                                ref='modalBody'
-                                className='modal-body'
-                            >
-                                <form role='form'>
-                                    {inviteSections}
-                                </form>
-                                {content}
-                            </div>
-                            <div className='modal-footer'>
-                                <button
-                                    type='button'
-                                    className='btn btn-default'
-                                    data-dismiss='modal'
-                                >Cancel</button>
-                                {sendButton}
-                            </div>
-                          </div>
-                       </div>
-                    </div>
+                            {sendButton}
+                        </Modal.Footer>
+                    </Modal>
                     <ConfirmModal
-                        id='confirm_invite_modal'
-                        parent_id='invite_member'
                         title='Discard Invitations?'
                         message='You have unsent invitations, are you sure you want to discard them?'
                         confirm_button='Yes, Discard'
+                        show={this.state.showConfirmModal}
+                        onConfirm={this.handleHide.bind(this, false)}
+                        onCancel={() => this.setState({showConfirmModal: false})}
                     />
                 </div>
             );
         }
-        return <div/>;
+
+        return null;
     }
 }
 
 InviteMemberModal.propTypes = {
-    teamType: React.PropTypes.string
 };

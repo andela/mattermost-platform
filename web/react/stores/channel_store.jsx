@@ -1,18 +1,17 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var AppDispatcher = require('../dispatcher/app_dispatcher.jsx');
-var EventEmitter = require('events').EventEmitter;
+import AppDispatcher from '../dispatcher/app_dispatcher.jsx';
+import EventEmitter from 'events';
 
-var Constants = require('../utils/constants.jsx');
-var ActionTypes = Constants.ActionTypes;
+var Utils;
+import Constants from '../utils/constants.jsx';
+const ActionTypes = Constants.ActionTypes;
 
-var BrowserStore = require('../stores/browser_store.jsx');
-
-var CHANGE_EVENT = 'change';
-var LEAVE_EVENT = 'leave';
-var MORE_CHANGE_EVENT = 'change';
-var EXTRA_INFO_EVENT = 'extra_info';
+const CHANGE_EVENT = 'change';
+const LEAVE_EVENT = 'leave';
+const MORE_CHANGE_EVENT = 'change';
+const EXTRA_INFO_EVENT = 'extra_info';
 
 class ChannelStoreClass extends EventEmitter {
     constructor(props) {
@@ -20,7 +19,38 @@ class ChannelStoreClass extends EventEmitter {
 
         this.setMaxListeners(11);
 
+        this.emitChange = this.emitChange.bind(this);
+        this.addChangeListener = this.addChangeListener.bind(this);
+        this.removeChangeListener = this.removeChangeListener.bind(this);
+        this.emitMoreChange = this.emitMoreChange.bind(this);
+        this.addMoreChangeListener = this.addMoreChangeListener.bind(this);
+        this.removeMoreChangeListener = this.removeMoreChangeListener.bind(this);
+        this.emitExtraInfoChange = this.emitExtraInfoChange.bind(this);
+        this.addExtraInfoChangeListener = this.addExtraInfoChangeListener.bind(this);
+        this.removeExtraInfoChangeListener = this.removeExtraInfoChangeListener.bind(this);
+        this.emitLeave = this.emitLeave.bind(this);
+        this.addLeaveListener = this.addLeaveListener.bind(this);
+        this.removeLeaveListener = this.removeLeaveListener.bind(this);
+        this.findFirstBy = this.findFirstBy.bind(this);
+        this.get = this.get.bind(this);
+        this.getMember = this.getMember.bind(this);
+        this.getByName = this.getByName.bind(this);
+        this.pSetPostMode = this.pSetPostMode.bind(this);
+        this.getPostMode = this.getPostMode.bind(this);
+
         this.currentId = null;
+        this.postMode = this.POST_MODE_CHANNEL;
+        this.channels = [];
+        this.channelMembers = {};
+        this.moreChannels = {};
+        this.moreChannels.loading = true;
+        this.extraInfos = {};
+    }
+    get POST_MODE_CHANNEL() {
+        return 1;
+    }
+    get POST_MODE_FOCUS() {
+        return 2;
     }
     emitChange() {
         this.emit(CHANGE_EVENT);
@@ -88,16 +118,6 @@ class ChannelStoreClass extends EventEmitter {
     }
     setCurrentId(id) {
         this.currentId = id;
-    }
-    setLastVisitedName(name) {
-        if (name == null) {
-            BrowserStore.removeItem('last_visited_name');
-        } else {
-            BrowserStore.setItem('last_visited_name', name);
-        }
-    }
-    getLastVisitedName() {
-        return BrowserStore.getItem('last_visited_name');
     }
     resetCounts(id) {
         var cm = this.pGetChannelMembers();
@@ -183,23 +203,18 @@ class ChannelStoreClass extends EventEmitter {
             channels.push(channel);
         }
 
-        channels.sort(function chanSort(a, b) {
-            if (a.display_name.toLowerCase() < b.display_name.toLowerCase()) {
-                return -1;
-            }
-            if (a.display_name.toLowerCase() > b.display_name.toLowerCase()) {
-                return 1;
-            }
-            return 0;
-        });
+        if (!Utils) {
+            Utils = require('../utils/utils.jsx'); //eslint-disable-line global-require
+        }
 
+        channels.sort(Utils.sortByDisplayName);
         this.pStoreChannels(channels);
     }
     pStoreChannels(channels) {
-        BrowserStore.setItem('channels', channels);
+        this.channels = channels;
     }
     pGetChannels() {
-        return BrowserStore.getItem('channels', []);
+        return this.channels;
     }
     pStoreChannelMember(channelMember) {
         var members = this.pGetChannelMembers();
@@ -207,48 +222,57 @@ class ChannelStoreClass extends EventEmitter {
         this.pStoreChannelMembers(members);
     }
     pStoreChannelMembers(channelMembers) {
-        BrowserStore.setItem('channel_members', channelMembers);
+        this.channelMembers = channelMembers;
     }
     pGetChannelMembers() {
-        return BrowserStore.getItem('channel_members', {});
+        return this.channelMembers;
     }
     pStoreMoreChannels(channels) {
-        BrowserStore.setItem('more_channels', channels);
+        this.moreChannels = channels;
     }
     pGetMoreChannels() {
-        var channels = BrowserStore.getItem('more_channels');
-
-        if (channels == null) {
-            channels = {};
-            channels.loading = true;
-        }
-
-        return channels;
+        return this.moreChannels;
     }
     pStoreExtraInfos(extraInfos) {
-        BrowserStore.setItem('extra_infos', extraInfos);
+        this.extraInfos = extraInfos;
     }
     pGetExtraInfos() {
-        return BrowserStore.getItem('extra_infos', {});
+        return this.extraInfos;
     }
     isDefault(channel) {
         return channel.name === Constants.DEFAULT_CHANNEL;
+    }
+
+    pSetPostMode(mode) {
+        this.postMode = mode;
+    }
+
+    getPostMode() {
+        return this.postMode;
     }
 }
 
 var ChannelStore = new ChannelStoreClass();
 
-ChannelStore.dispatchToken = AppDispatcher.register(function handleAction(payload) {
+ChannelStore.dispatchToken = AppDispatcher.register((payload) => {
     var action = payload.action;
     var currentId;
 
     switch (action.type) {
     case ActionTypes.CLICK_CHANNEL:
         ChannelStore.setCurrentId(action.id);
-        ChannelStore.setLastVisitedName(action.name);
         ChannelStore.resetCounts(action.id);
+        ChannelStore.pSetPostMode(ChannelStore.POST_MODE_CHANNEL);
         ChannelStore.emitChange();
         break;
+
+    case ActionTypes.RECIEVED_FOCUSED_POST: {
+        const post = action.post_list.posts[action.postId];
+        ChannelStore.setCurrentId(post.channel_id);
+        ChannelStore.pSetPostMode(ChannelStore.POST_MODE_FOCUS);
+        ChannelStore.emitChange();
+        break;
+    }
 
     case ActionTypes.RECIEVED_CHANNELS:
         ChannelStore.pStoreChannels(action.channels);

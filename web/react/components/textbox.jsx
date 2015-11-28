@@ -1,15 +1,17 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-const AppDispatcher = require('../dispatcher/app_dispatcher.jsx');
-const SearchStore = require('../stores/search_store.jsx');
-const CommandList = require('./command_list.jsx');
-const ErrorStore = require('../stores/error_store.jsx');
+import AppDispatcher from '../dispatcher/app_dispatcher.jsx';
+import SearchStore from '../stores/search_store.jsx';
+import CommandList from './command_list.jsx';
+import ErrorStore from '../stores/error_store.jsx';
 
-const Utils = require('../utils/utils.jsx');
-const Constants = require('../utils/constants.jsx');
+import * as TextFormatting from '../utils/text_formatting.jsx';
+import * as Utils from '../utils/utils.jsx';
+import Constants from '../utils/constants.jsx';
 const ActionTypes = Constants.ActionTypes;
 const KeyCodes = Constants.KeyCodes;
+const PreReleaseFeatures = Constants.PRE_RELEASE_FEATURES;
 
 export default class Textbox extends React.Component {
     constructor(props) {
@@ -30,6 +32,7 @@ export default class Textbox extends React.Component {
         this.handleFocus = this.handleFocus.bind(this);
         this.handleBlur = this.handleBlur.bind(this);
         this.handlePaste = this.handlePaste.bind(this);
+        this.showPreview = this.showPreview.bind(this);
 
         this.state = {
             mentionText: '-1',
@@ -118,7 +121,8 @@ export default class Textbox extends React.Component {
     }
 
     handleChange() {
-        this.props.onUserInput(ReactDOM.findDOMNode(this.refs.message).value);
+        const text = ReactDOM.findDOMNode(this.refs.message).value;
+        this.props.onUserInput(text);
     }
 
     handleKeyPress(e) {
@@ -250,10 +254,16 @@ export default class Textbox extends React.Component {
             $(e).css({height: 'auto', 'overflow-y': 'hidden'}).height(e.scrollHeight - mod);
             $(w).css({height: 'auto'}).height(e.scrollHeight + 2);
             $(w).closest('.post-body__cell').removeClass('scroll');
+            if (this.state.preview) {
+                $(ReactDOM.findDOMNode(this.refs.preview)).css({height: 'auto', 'overflow-y': 'auto'}).height(e.scrollHeight - mod);
+            }
         } else {
-            $(e).css({height: 'auto', 'overflow-y': 'scroll'}).height(167);
-            $(w).css({height: 'auto'}).height(167);
+            $(e).css({height: 'auto', 'overflow-y': 'scroll'}).height(167 - mod);
+            $(w).css({height: 'auto'}).height(163);
             $(w).closest('.post-body__cell').addClass('scroll');
+            if (this.state.preview) {
+                $(ReactDOM.findDOMNode(this.refs.preview)).css({height: 'auto', 'overflow-y': 'scroll'}).height(163);
+            }
         }
 
         if (prevHeight !== $(e).height() && this.props.onHeightChange) {
@@ -279,7 +289,35 @@ export default class Textbox extends React.Component {
         this.doProcessMentions = true;
     }
 
+    showPreview(e) {
+        e.preventDefault();
+        e.target.blur();
+        this.setState({preview: !this.state.preview});
+        this.resize();
+    }
+
+    showHelp(e) {
+        e.preventDefault();
+        e.target.blur();
+
+        global.window.open('/docs/Messaging');
+    }
+
     render() {
+        let previewLink = null;
+        if (Utils.isFeatureEnabled(PreReleaseFeatures.MARKDOWN_PREVIEW)) {
+            const previewLinkVisible = this.props.messageText.length > 0;
+            previewLink = (
+                <a
+                    style={{visibility: previewLinkVisible ? 'visible' : 'hidden'}}
+                    onClick={this.showPreview}
+                    className='textbox-preview-link'
+                >
+                    {this.state.preview ? 'Edit message' : 'Preview'}
+                </a>
+            );
+        }
+
         return (
             <div
                 ref='wrapper'
@@ -308,7 +346,22 @@ export default class Textbox extends React.Component {
                     onFocus={this.handleFocus}
                     onBlur={this.handleBlur}
                     onPaste={this.handlePaste}
+                    style={{visibility: this.state.preview ? 'hidden' : 'visible'}}
                 />
+                <div
+                    ref='preview'
+                    className='form-control custom-textarea textbox-preview-area'
+                    style={{display: this.state.preview ? 'block' : 'none'}}
+                    dangerouslySetInnerHTML={{__html: this.state.preview ? TextFormatting.formatText(this.props.messageText) : ''}}
+                >
+                </div>
+                {previewLink}
+                <a
+                    onClick={this.showHelp}
+                    className='textbox-help-link'
+                >
+                    {'Help'}
+                </a>
             </div>
         );
     }

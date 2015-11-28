@@ -102,7 +102,7 @@ func (as SqlOAuthStore) UpdateApp(app *model.OAuthApp) StoreChannel {
 		}
 
 		if oldAppResult, err := as.GetMaster().Get(model.OAuthApp{}, app.Id); err != nil {
-			result.Err = model.NewAppError("SqlOAuthStore.UpdateApp", "We encounted an error finding the app", "app_id="+app.Id+", "+err.Error())
+			result.Err = model.NewAppError("SqlOAuthStore.UpdateApp", "We encountered an error finding the app", "app_id="+app.Id+", "+err.Error())
 		} else if oldAppResult == nil {
 			result.Err = model.NewAppError("SqlOAuthStore.UpdateApp", "We couldn't find the existing app to update", "app_id="+app.Id)
 		} else {
@@ -112,7 +112,7 @@ func (as SqlOAuthStore) UpdateApp(app *model.OAuthApp) StoreChannel {
 			app.CreatorId = oldApp.CreatorId
 
 			if count, err := as.GetMaster().Update(app); err != nil {
-				result.Err = model.NewAppError("SqlOAuthStore.UpdateApp", "We encounted an error updating the app", "app_id="+app.Id+", "+err.Error())
+				result.Err = model.NewAppError("SqlOAuthStore.UpdateApp", "We encountered an error updating the app", "app_id="+app.Id+", "+err.Error())
 			} else if count != 1 {
 				result.Err = model.NewAppError("SqlOAuthStore.UpdateApp", "We couldn't update the app", "app_id="+app.Id)
 			} else {
@@ -135,7 +135,7 @@ func (as SqlOAuthStore) GetApp(id string) StoreChannel {
 		result := StoreResult{}
 
 		if obj, err := as.GetReplica().Get(model.OAuthApp{}, id); err != nil {
-			result.Err = model.NewAppError("SqlOAuthStore.GetApp", "We encounted an error finding the app", "app_id="+id+", "+err.Error())
+			result.Err = model.NewAppError("SqlOAuthStore.GetApp", "We encountered an error finding the app", "app_id="+id+", "+err.Error())
 		} else if obj == nil {
 			result.Err = model.NewAppError("SqlOAuthStore.GetApp", "We couldn't find the existing app", "app_id="+id)
 		} else {
@@ -208,7 +208,7 @@ func (as SqlOAuthStore) GetAccessData(token string) StoreChannel {
 		accessData := model.AccessData{}
 
 		if err := as.GetReplica().SelectOne(&accessData, "SELECT * FROM OAuthAccessData WHERE Token = :Token", map[string]interface{}{"Token": token}); err != nil {
-			result.Err = model.NewAppError("SqlOAuthStore.GetAccessData", "We encounted an error finding the access token", err.Error())
+			result.Err = model.NewAppError("SqlOAuthStore.GetAccessData", "We encountered an error finding the access token", err.Error())
 		} else {
 			result.Data = &accessData
 		}
@@ -300,7 +300,7 @@ func (as SqlOAuthStore) GetAuthData(code string) StoreChannel {
 		result := StoreResult{}
 
 		if obj, err := as.GetReplica().Get(model.AuthData{}, code); err != nil {
-			result.Err = model.NewAppError("SqlOAuthStore.GetAuthData", "We encounted an error finding the authorization code", err.Error())
+			result.Err = model.NewAppError("SqlOAuthStore.GetAuthData", "We encountered an error finding the authorization code", err.Error())
 		} else if obj == nil {
 			result.Err = model.NewAppError("SqlOAuthStore.GetAuthData", "We couldn't find the existing authorization code", "")
 		} else {
@@ -324,6 +324,24 @@ func (as SqlOAuthStore) RemoveAuthData(code string) StoreChannel {
 		_, err := as.GetMaster().Exec("DELETE FROM OAuthAuthData WHERE Code = :Code", map[string]interface{}{"Code": code})
 		if err != nil {
 			result.Err = model.NewAppError("SqlOAuthStore.RemoveAuthData", "We couldn't remove the authorization code", "err="+err.Error())
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (as SqlOAuthStore) PermanentDeleteAuthDataByUser(userId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		_, err := as.GetMaster().Exec("DELETE FROM OAuthAuthData WHERE UserId = :UserId", map[string]interface{}{"UserId": userId})
+		if err != nil {
+			result.Err = model.NewAppError("SqlOAuthStore.RemoveAuthDataByUserId", "We couldn't remove the authorization code", "err="+err.Error())
 		}
 
 		storeChannel <- result

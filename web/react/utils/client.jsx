@@ -1,8 +1,8 @@
 // See License.txt for license information.
 
-var BrowserStore = require('../stores/browser_store.jsx');
-var TeamStore = require('../stores/team_store.jsx');
-var ErrorStore = require('../stores/error_store.jsx');
+import BrowserStore from '../stores/browser_store.jsx';
+import TeamStore from '../stores/team_store.jsx';
+import ErrorStore from '../stores/error_store.jsx';
 
 export function track(category, action, label, property, value) {
     global.window.analytics.track(action, {category, label, property, value});
@@ -231,6 +231,7 @@ export function resetPassword(data, success, error) {
 export function logout() {
     track('api', 'api_users_logout');
     var currentTeamUrl = TeamStore.getCurrentTeamUrl();
+    BrowserStore.signalLogout();
     BrowserStore.clear();
     ErrorStore.storeLastError(null);
     window.location.href = currentTeamUrl + '/logout';
@@ -442,16 +443,16 @@ export function inviteMembers(data, success, error) {
     track('api', 'api_teams_invite_members');
 }
 
-export function updateTeamDisplayName(data, success, error) {
+export function updateTeam(team, success, error) {
     $.ajax({
-        url: '/api/v1/teams/update_name',
+        url: '/api/v1/teams/update',
         dataType: 'json',
         contentType: 'application/json',
         type: 'POST',
-        data: JSON.stringify(data),
+        data: JSON.stringify(team),
         success,
-        error: function onError(xhr, status, err) {
-            var e = handleError('updateTeamDisplayName', xhr, status, err);
+        error: (xhr, status, err) => {
+            var e = handleError('updateTeam', xhr, status, err);
             error(e);
         }
     });
@@ -819,7 +820,37 @@ export function getPosts(channelId, since, success, error, complete) {
     });
 }
 
-export function getPost(channelId, postId, success, error) {
+export function getPostsBefore(channelId, post, offset, numPost, success, error, complete) {
+    $.ajax({
+        url: '/api/v1/channels/' + channelId + '/post/' + post + '/before/' + offset + '/' + numPost,
+        dataType: 'json',
+        type: 'GET',
+        ifModified: false,
+        success,
+        error: function onError(xhr, status, err) {
+            var e = handleError('getPostsBefore', xhr, status, err);
+            error(e);
+        },
+        complete: complete
+    });
+}
+
+export function getPostsAfter(channelId, post, offset, numPost, success, error, complete) {
+    $.ajax({
+        url: '/api/v1/channels/' + channelId + '/post/' + post + '/after/' + offset + '/' + numPost,
+        dataType: 'json',
+        type: 'GET',
+        ifModified: false,
+        success,
+        error: function onError(xhr, status, err) {
+            var e = handleError('getPostsAfter', xhr, status, err);
+            error(e);
+        },
+        complete: complete
+    });
+}
+
+export function getPost(channelId, postId, success, error, complete) {
     $.ajax({
         cache: false,
         url: '/api/v1/channels/' + channelId + '/post/' + postId,
@@ -830,7 +861,24 @@ export function getPost(channelId, postId, success, error) {
         error: function onError(xhr, status, err) {
             var e = handleError('getPost', xhr, status, err);
             error(e);
-        }
+        },
+        complete
+    });
+}
+
+export function getPostById(postId, success, error, complete) {
+    $.ajax({
+        cache: false,
+        url: '/api/v1/posts/' + postId,
+        dataType: 'json',
+        type: 'GET',
+        ifModified: false,
+        success,
+        error: function onError(xhr, status, err) {
+            var e = handleError('getPostById', xhr, status, err);
+            error(e);
+        },
+        complete
     });
 }
 
@@ -1069,12 +1117,13 @@ export function exportTeam(success, error) {
     });
 }
 
-export function getStatuses(success, error) {
+export function getStatuses(ids, success, error) {
     $.ajax({
         url: '/api/v1/users/status',
         dataType: 'json',
         contentType: 'application/json',
-        type: 'GET',
+        type: 'POST',
+        data: JSON.stringify(ids),
         success,
         error: function onError(xhr, status, err) {
             var e = handleError('getStatuses', xhr, status, err);

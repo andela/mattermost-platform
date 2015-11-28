@@ -1,22 +1,30 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var UserStore = require('../stores/user_store.jsx');
-var utils = require('../utils/utils.jsx');
+import UserStore from '../stores/user_store.jsx';
+import TeamStore from '../stores/team_store.jsx';
+import * as Utils from '../utils/utils.jsx';
+import TimeSince from './time_since.jsx';
+import * as EventHelpers from '../dispatcher/event_helpers.jsx';
 
-var Constants = require('../utils/constants.jsx');
-var Tooltip = ReactBootstrap.Tooltip;
-var OverlayTrigger = ReactBootstrap.OverlayTrigger;
+import Constants from '../utils/constants.jsx';
+
+const OverlayTrigger = ReactBootstrap.OverlayTrigger;
+const Popover = ReactBootstrap.Popover;
 
 export default class PostInfo extends React.Component {
     constructor(props) {
         super(props);
-        this.state = {};
+        this.state = {
+            copiedLink: false
+        };
+
+        this.handlePermalinkCopy = this.handlePermalinkCopy.bind(this);
     }
     createDropdown() {
         var post = this.props.post;
         var isOwner = UserStore.getCurrentId() === post.user_id;
-        var isAdmin = utils.isAdmin(UserStore.getCurrentUser().roles);
+        var isAdmin = Utils.isAdmin(UserStore.getCurrentUser().roles);
 
         if (post.state === Constants.POST_FAILED || post.state === Constants.POST_LOADING || post.state === Constants.POST_DELETED) {
             return '';
@@ -51,7 +59,7 @@ export default class PostInfo extends React.Component {
                         data-channelid={post.channel_id}
                         data-comments={dataComments}
                     >
-                        Edit
+                        {'Edit'}
                     </a>
                 </li>
             );
@@ -66,14 +74,9 @@ export default class PostInfo extends React.Component {
                     <a
                         href='#'
                         role='menuitem'
-                        data-toggle='modal'
-                        data-target='#delete_post'
-                        data-title={type}
-                        data-postid={post.id}
-                        data-channelid={post.channel_id}
-                        data-comments={dataComments}
+                        onClick={() => EventHelpers.showDeletePostModal(post, dataComments)}
                     >
-                        Delete
+                        {'Delete'}
                     </a>
                 </li>
             );
@@ -86,11 +89,11 @@ export default class PostInfo extends React.Component {
                     role='presentation'
                 >
                     <a
-                        className='reply-link theme'
+                        className='link__reply theme'
                         href='#'
                         onClick={this.props.handleCommentClick}
                     >
-                        Reply
+                        {'Reply'}
                     </a>
                 </li>
             );
@@ -104,7 +107,7 @@ export default class PostInfo extends React.Component {
             <div>
                 <a
                     href='#'
-                    className='dropdown-toggle theme'
+                    className='dropdown-toggle post__dropdown theme'
                     type='button'
                     data-toggle='dropdown'
                     aria-expanded='false'
@@ -118,53 +121,103 @@ export default class PostInfo extends React.Component {
             </div>
         );
     }
+    handlePermalinkCopy() {
+        const textBox = $(ReactDOM.findDOMNode(this.refs.permalinkbox));
+        textBox.select();
+
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                this.setState({copiedLink: true});
+            } else {
+                this.setState({copiedLink: false});
+            }
+        } catch (err) {
+            this.setState({copiedLink: false});
+        }
+    }
     render() {
         var post = this.props.post;
         var comments = '';
-        var lastCommentClass = ' comment-icon__container__hide';
-        if (this.props.isLastComment) {
-            lastCommentClass = ' comment-icon__container__show';
+        var showCommentClass = '';
+        var commentCountText = this.props.commentCount;
+
+        if (this.props.commentCount >= 1) {
+            showCommentClass = ' icon--show';
+        } else {
+            commentCountText = '';
         }
 
-        if (this.props.commentCount >= 1 && post.state !== Constants.POST_FAILED && post.state !== Constants.POST_LOADING) {
+        if (post.state !== Constants.POST_FAILED && post.state !== Constants.POST_LOADING && post.state !== Constants.POST_DELETED) {
             comments = (
                 <a
                     href='#'
-                    className={'comment-icon__container theme' + lastCommentClass}
+                    className={'comment-icon__container' + showCommentClass}
                     onClick={this.props.handleCommentClick}
                 >
                     <span
                         className='comment-icon'
                         dangerouslySetInnerHTML={{__html: Constants.COMMENT_ICON}}
                     />
-                    {this.props.commentCount}
+                    {commentCountText}
                 </a>
             );
         }
 
         var dropdown = this.createDropdown();
 
-        let tooltip = <Tooltip id={post.id + 'tooltip'}>{`${utils.displayDate(post.create_at)} at ${utils.displayTime(post.create_at)}`}</Tooltip>;
+        const permalink = TeamStore.getCurrentTeamUrl() + '/pl/' + post.id;
+        const copyButtonText = this.state.copiedLink ? (<div>{'Copy '}<i className='fa fa-check'/></div>) : 'Copy';
+        const permalinkOverlay = (
+            <Popover
+                id='permalink-overlay'
+                className='permalink-popover'
+                placement='left'
+                title=''
+            >
+                <div className='form-inline'>
+                    <input
+                        type='text'
+                        readOnly='true'
+                        ref='permalinkbox'
+                        className='permalink-text form-control no-resize min-height input-large'
+                        rows='1'
+                        value={permalink}
+                    />
+                    <button
+                        data-copy-btn='true'
+                        type='button'
+                        className='btn btn-primary'
+                        onClick={this.handlePermalinkCopy}
+                        data-clipboard-text={permalink}
+                    >
+                        {copyButtonText}
+                    </button>
+                </div>
+            </Popover>
+        );
 
         return (
-            <ul className='post-header post-info'>
-                <li className='post-header-col'>
-                    <OverlayTrigger
-                        delayShow={500}
-                        container={this}
-                        placement='top'
-                        overlay={tooltip}
-                    >
-                        <time className='post-profile-time'>
-                            {utils.displayDateTime(post.create_at)}
-                        </time>
-                    </OverlayTrigger>
+            <ul className='post__header post__header--info'>
+                <li className='col'>
+                    <TimeSince
+                        eventTime={post.create_at}
+                    />
                 </li>
-                <li className='post-header-col post-header__reply'>
+                <li className='col col__reply'>
+                    {comments}
+                    <OverlayTrigger
+                        trigger='click'
+                        placement='left'
+                        rootClose={true}
+                        overlay={permalinkOverlay}
+                    >
+                        <i className={'permalink-icon fa fa-link ' + showCommentClass}/>
+                    </OverlayTrigger>
+
                     <div className='dropdown'>
                         {dropdown}
                     </div>
-                    {comments}
                 </li>
             </ul>
         );

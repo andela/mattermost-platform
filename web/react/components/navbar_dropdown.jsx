@@ -1,33 +1,29 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var Utils = require('../utils/utils.jsx');
-var client = require('../utils/client.jsx');
-var UserStore = require('../stores/user_store.jsx');
-var TeamStore = require('../stores/team_store.jsx');
+import * as Utils from '../utils/utils.jsx';
+import * as client from '../utils/client.jsx';
+import UserStore from '../stores/user_store.jsx';
+import TeamStore from '../stores/team_store.jsx';
+import * as EventHelpers from '../dispatcher/event_helpers.jsx';
 
-var AboutBuildModal = require('./about_build_modal.jsx');
+import AboutBuildModal from './about_build_modal.jsx';
+import TeamMembersModal from './team_members_modal.jsx';
+import ToggleModalButton from './toggle_modal_button.jsx';
+import UserSettingsModal from './user_settings/user_settings_modal.jsx';
 
-var Constants = require('../utils/constants.jsx');
+import Constants from '../utils/constants.jsx';
 
 function getStateFromStores() {
-    let teams = [];
-    let teamsObject = UserStore.getTeams();
-    for (let teamId in teamsObject) {
+    const teams = [];
+    const teamsObject = UserStore.getTeams();
+    for (const teamId in teamsObject) {
         if (teamsObject.hasOwnProperty(teamId)) {
             teams.push(teamsObject[teamId]);
         }
     }
-    teams.sort(function sortByDisplayName(teamA, teamB) {
-        let teamADisplayName = teamA.display_name.toLowerCase();
-        let teamBDisplayName = teamB.display_name.toLowerCase();
-        if (teamADisplayName < teamBDisplayName) {
-            return -1;
-        } else if (teamADisplayName > teamBDisplayName) {
-            return 1;
-        }
-        return 0;
-    });
+
+    teams.sort(Utils.sortByDisplayName);
     return {teams};
 }
 
@@ -41,7 +37,10 @@ export default class NavbarDropdown extends React.Component {
         this.onListenerChange = this.onListenerChange.bind(this);
         this.aboutModalDismissed = this.aboutModalDismissed.bind(this);
 
-        this.state = getStateFromStores();
+        const state = getStateFromStores();
+        state.showUserSettingsModal = false;
+        state.showAboutModal = false;
+        this.state = state;
     }
     handleLogoutClick(e) {
         e.preventDefault();
@@ -73,7 +72,7 @@ export default class NavbarDropdown extends React.Component {
     }
     onListenerChange() {
         var newState = getStateFromStores();
-        if (!Utils.areStatesEqual(newState, this.state)) {
+        if (!Utils.areObjectsEqual(newState, this.state)) {
             this.setState(newState);
         }
     }
@@ -96,23 +95,19 @@ export default class NavbarDropdown extends React.Component {
                 <li>
                     <a
                         href='#'
-                        data-toggle='modal'
-                        data-target='#invite_member'
+                        onClick={EventHelpers.showInviteMemberModal}
                     >
                         {'Invite New Member'}
                     </a>
                 </li>
             );
 
-            if (this.props.teamType === 'O') {
+            if (this.props.teamType === Constants.OPEN_TEAM) {
                 teamLink = (
                     <li>
                         <a
                             href='#'
-                            data-toggle='modal'
-                            data-target='#get_link'
-                            data-title='Team Invite'
-                            data-value={Utils.getWindowLocationOrigin() + '/signup_user_complete/?id=' + currentUser.team_id}
+                            onClick={EventHelpers.showGetTeamInviteLinkModal}
                         >
                             {'Get Team Invite Link'}
                         </a>
@@ -124,13 +119,9 @@ export default class NavbarDropdown extends React.Component {
         if (isAdmin) {
             manageLink = (
                 <li>
-                    <a
-                        href='#'
-                        data-toggle='modal'
-                        data-target='#team_members'
-                    >
+                    <ToggleModalButton dialogType={TeamMembersModal}>
                         {'Manage Members'}
-                    </a>
+                    </ToggleModalButton>
                 </li>
             );
 
@@ -218,8 +209,7 @@ export default class NavbarDropdown extends React.Component {
                         <li>
                             <a
                                 href='#'
-                                data-toggle='modal'
-                                data-target='#user_settings'
+                                onClick={() => this.setState({showUserSettingsModal: true})}
                             >
                                 {'Account Settings'}
                             </a>
@@ -264,6 +254,10 @@ export default class NavbarDropdown extends React.Component {
                                 {'About Mattermost'}
                             </a>
                         </li>
+                        <UserSettingsModal
+                            show={this.state.showUserSettingsModal}
+                            onModalDismissed={() => this.setState({showUserSettingsModal: false})}
+                        />
                         <AboutBuildModal
                             show={this.state.showAboutModal}
                             onModalDismissed={this.aboutModalDismissed}

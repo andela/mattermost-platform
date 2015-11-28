@@ -1,12 +1,12 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var AppDispatcher = require('../dispatcher/app_dispatcher.jsx');
-var EventEmitter = require('events').EventEmitter;
+import AppDispatcher from '../dispatcher/app_dispatcher.jsx';
+import EventEmitter from 'events';
 
-var BrowserStore = require('../stores/browser_store.jsx');
+import BrowserStore from '../stores/browser_store.jsx';
 
-var Constants = require('../utils/constants.jsx');
+import Constants from '../utils/constants.jsx';
 var ActionTypes = Constants.ActionTypes;
 
 var CHANGE_EVENT = 'change';
@@ -14,6 +14,7 @@ var SEARCH_CHANGE_EVENT = 'search_change';
 var SEARCH_TERM_CHANGE_EVENT = 'search_term_change';
 var MENTION_DATA_CHANGE_EVENT = 'mention_data_change';
 var ADD_MENTION_EVENT = 'add_mention';
+var SHOW_SEARCH_EVENT = 'show_search';
 
 class SearchStoreClass extends EventEmitter {
     constructor() {
@@ -34,6 +35,10 @@ class SearchStoreClass extends EventEmitter {
         this.emitMentionDataChange = this.emitMentionDataChange.bind(this);
         this.addMentionDataChangeListener = this.addMentionDataChangeListener.bind(this);
         this.removeMentionDataChangeListener = this.removeMentionDataChangeListener.bind(this);
+
+        this.emitShowSearch = this.emitShowSearch.bind(this);
+        this.addShowSearchListener = this.addShowSearchListener.bind(this);
+        this.removeShowSearchListener = this.removeShowSearchListener.bind(this);
 
         this.getSearchResults = this.getSearchResults.bind(this);
         this.getIsMentionSearch = this.getIsMentionSearch.bind(this);
@@ -78,6 +83,18 @@ class SearchStoreClass extends EventEmitter {
 
     removeSearchTermChangeListener(callback) {
         this.removeListener(SEARCH_TERM_CHANGE_EVENT, callback);
+    }
+
+    emitShowSearch() {
+        this.emit(SHOW_SEARCH_EVENT);
+    }
+
+    addShowSearchListener(callback) {
+        this.on(SHOW_SEARCH_EVENT, callback);
+    }
+
+    removeShowSearchListener(callback) {
+        this.removeListener(SHOW_SEARCH_EVENT, callback);
     }
 
     getSearchResults() {
@@ -145,6 +162,9 @@ SearchStore.dispatchToken = AppDispatcher.register((payload) => {
         break;
     case ActionTypes.RECIEVED_ADD_MENTION:
         SearchStore.emitAddMention(action.id, action.username);
+        break;
+    case ActionTypes.SHOW_SEARCH:
+        SearchStore.emitShowSearch();
         break;
     default:
     }

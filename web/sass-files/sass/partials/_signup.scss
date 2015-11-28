@@ -80,7 +80,7 @@
     }
 
     .inner__content {
-        padding: 0 15px;
+        padding: 0 1rem;
         margin: 30px 0 20px;
     }
 
@@ -133,23 +133,28 @@
     .or__container {
         height: 1px;
         background: #dddddd;
-        text-align: center;
+        text-align: left;
         margin: 2em 0;
         span {
-            width: 33px;
+            width: 40px;
             top: -10px;
             position: relative;
-            font-size: em(16px);
+            font-size: 1.14286em;
             line-height: 20px;
             font-weight: 600;
             background: #fff;
             display: inline-block;
+            text-align: center;
         }
     }
 
     ul {
         margin-bottom: 0;
         padding-left: 18px;
+    }
+
+    .signup__email-container {
+        margin-left: 1rem;
     }
 
     .btn {
@@ -173,7 +178,7 @@
             min-width: 200px;
             width: 200px;
             padding: 0 1em;
-            margin: 1em auto;
+            margin: 1em 1rem;
             height: 40px;
             line-height: 34px;
             color: #fff;
@@ -312,6 +317,41 @@
     }
 
 }
+
+.signup-team-all {
+    margin: 0 0 20px;
+    border: 1px solid #ddd;
+    @include border-radius(2px);
+    .signup-team-dir {
+        background: #fafafa;
+        border-top: 1px solid #d5d5d5;
+        &:first-child {
+            border: none;
+        }
+        a {
+            color: inherit;
+            display: block;
+            padding: 0 15px;
+            line-height: 3.5em;
+            height: 3.5em;
+            font-size: 1.1em;
+        }
+    }
+    .signup-team-dir__name {
+        white-space: nowrap;
+        float: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        width: 90%;
+    }
+    .signup-team-dir__arrow {
+        float: right;
+        font-size: 0.9em;
+        color: #999;
+        line-height: 3.5em;
+    }
+}
+
 
 .authorize-box {
     margin: 100px auto;

@@ -1,11 +1,12 @@
 // Copyright (c) 2015 Spinpunch, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var Client = require('../../utils/client.jsx');
-var Constants = require('../../utils/constants.jsx');
-var ChannelStore = require('../../stores/channel_store.jsx');
-var LoadingScreen = require('../loading_screen.jsx');
+import LoadingScreen from '../loading_screen.jsx';
 
+import ChannelStore from '../../stores/channel_store.jsx';
+
+import * as Client from '../../utils/client.jsx';
+import Constants from '../../utils/constants.jsx';
 
 export default class ManageOutgoingHooks extends React.Component {
     constructor() {
@@ -45,10 +46,10 @@ export default class ManageOutgoingHooks extends React.Component {
                     hooks = [];
                 }
                 hooks.push(data);
-                this.setState({hooks, serverError: null, channelId: '', triggerWords: '', callbackURLs: ''});
+                this.setState({hooks, addError: null, channelId: '', triggerWords: '', callbackURLs: ''});
             },
             (err) => {
-                this.setState({serverError: err});
+                this.setState({addError: err.message});
             }
         );
     }
@@ -75,7 +76,7 @@ export default class ManageOutgoingHooks extends React.Component {
                 this.setState({hooks});
             },
             (err) => {
-                this.setState({serverError: err});
+                this.setState({editError: err.message});
             }
         );
     }
@@ -94,10 +95,10 @@ export default class ManageOutgoingHooks extends React.Component {
                     }
                 }
 
-                this.setState({hooks, serverError: null});
+                this.setState({hooks, editError: null});
             },
             (err) => {
-                this.setState({serverError: err});
+                this.setState({editError: err.message});
             }
         );
     }
@@ -105,11 +106,11 @@ export default class ManageOutgoingHooks extends React.Component {
         Client.listOutgoingHooks(
             (data) => {
                 if (data) {
-                    this.setState({hooks: data, getHooksComplete: true, serverError: null});
+                    this.setState({hooks: data, getHooksComplete: true, editError: null});
                 }
             },
             (err) => {
-                this.setState({serverError: err});
+                this.setState({editError: err.message});
             }
         );
     }
@@ -123,9 +124,13 @@ export default class ManageOutgoingHooks extends React.Component {
         this.setState({callbackURLs: e.target.value});
     }
     render() {
-        let serverError;
-        if (this.state.serverError) {
-            serverError = <label className='has-error'>{this.state.serverError}</label>;
+        let addError;
+        if (this.state.addError) {
+            addError = <label className='has-error'>{this.state.addError}</label>;
+        }
+        let editError;
+        if (this.state.editError) {
+            addError = <label className='has-error'>{this.state.editError}</label>;
         }
 
         const channels = ChannelStore.getAll();
@@ -235,7 +240,8 @@ export default class ManageOutgoingHooks extends React.Component {
 
         return (
             <div key='addOutgoingHook'>
-                <label className='control-label'>{'Add a new outgoing webhook'}</label>
+                {'Create webhooks to send new message events to an external integration. Please see '}<a href='http://mattermost.org/webhooks'>{'http://mattermost.org/webhooks'}</a> {' to learn more.'}
+                <div><label className='control-label padding-top x2'>{'Add a new outgoing webhook'}</label></div>
                 <div className='padding-top divider-light'></div>
                 <div className='padding-top'>
                     <div>
@@ -275,10 +281,11 @@ export default class ManageOutgoingHooks extends React.Component {
                             resize={false}
                             rows={3}
                             onChange={this.updateCallbackURLs}
+                            placeholder='Each URL must start with http:// or https://'
                         />
                         </div>
                         <div className='padding-top'>{'New line separated URLs that will receive the HTTP POST event'}</div>
-                        {serverError}
+                        {addError}
                     </div>
                     <div className='padding-top padding-bottom'>
                         <a
@@ -292,6 +299,7 @@ export default class ManageOutgoingHooks extends React.Component {
                     </div>
                 </div>
                 {existingHooks}
+                {editError}
             </div>
         );
     }

@@ -121,7 +121,10 @@ func NewSqlStore() Store {
 	sqlStore.webhook = NewSqlWebhookStore(sqlStore)
 	sqlStore.preference = NewSqlPreferenceStore(sqlStore)
 
-	sqlStore.master.CreateTablesIfNotExists()
+	err := sqlStore.master.CreateTablesIfNotExists()
+	if err != nil {
+		l4g.Critical("Error creating database tables: %v", err)
+	}
 
 	sqlStore.team.(*SqlTeamStore).UpgradeSchemaIfNeeded()
 	sqlStore.channel.(*SqlChannelStore).UpgradeSchemaIfNeeded()
@@ -144,6 +147,8 @@ func NewSqlStore() Store {
 	sqlStore.system.(*SqlSystemStore).CreateIndexesIfNotExists()
 	sqlStore.webhook.(*SqlWebhookStore).CreateIndexesIfNotExists()
 	sqlStore.preference.(*SqlPreferenceStore).CreateIndexesIfNotExists()
+
+	sqlStore.preference.(*SqlPreferenceStore).DeleteUnusedFeatures()
 
 	if model.IsPreviousVersion(schemaVersion) || isSchemaVersion07 || isSchemaVersion10 {
 		sqlStore.system.Update(&model.System{Name: "Version", Value: model.CurrentVersion})
@@ -452,6 +457,20 @@ func IsUniqueConstraintError(err string, mysql string, postgres string) bool {
 	return unique && field
 }
 
+func (ss SqlStore) GetColumnDataType(tableName, columnName string) string {
+	dataType, err := ss.GetMaster().SelectStr("SELECT data_type FROM INFORMATION_SCHEMA.COLUMNS where table_name = :Tablename AND column_name = :Columnname", map[string]interface{}{
+		"Tablename":  tableName,
+		"Columnname": columnName,
+	})
+	if err != nil {
+		l4g.Critical("Failed to get data type for column %s from table %s: %v", columnName, tableName, err.Error())
+		time.Sleep(time.Second)
+		panic("Failed to get get data type for column " + columnName + " from table " + tableName + ": " + err.Error())
+	}
+
+	return dataType
+}
+
 func (ss SqlStore) GetMaster() *gorp.DbMap {
 	return ss.master
 }
@@ -526,6 +545,8 @@ func (me mattermConverter) ToDb(val interface{}) (interface{}, error) {
 		return model.ArrayToJson(t), nil
 	case model.EncryptStringMap:
 		return encrypt([]byte(utils.Cfg.SqlSettings.AtRestEncryptKey), model.MapToJson(t))
+	case model.StringInterface:
+		return model.StringInterfaceToJson(t), nil
 	}
 
 	return val, nil
@@ -566,6 +587,16 @@ func (me mattermConverter) FromDb(target interface{}) (gorp.CustomScanner, bool)
 			}
 
 			b := []byte(ue)
+			return json.Unmarshal(b, target)
+		}
+		return gorp.CustomScanner{new(string), target, binder}, true
+	case *model.StringInterface:
+		binder := func(holder, target interface{}) error {
+			s, ok := holder.(*string)
+			if !ok {
+				return errors.New("FromDb: Unable to convert StringInterface to *string")
+			}
+			b := []byte(*s)
 			return json.Unmarshal(b, target)
 		}
 		return gorp.CustomScanner{new(string), target, binder}, true

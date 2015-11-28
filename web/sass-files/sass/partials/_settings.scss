@@ -13,6 +13,10 @@
 .settings-modal {
     width:800px;
     max-width: 100%;
+    .modal-content {
+        width:800px;
+        max-width: 100%;
+    }
     .modal-back {
         width: 40px;
         height: 56px;
@@ -60,6 +64,10 @@
             }
         }
     }
+    .profile-img {
+        width: 128px;
+        height: 128px;
+    }
     .settings-table {
         display: table;
         table-layout: fixed;
@@ -72,6 +80,10 @@
             position: fixed;
             top: 57px;
             width: 179px;
+            &.absolute {
+                position: absolute;
+                top: 0;
+            }
         }
         .security-links {
             margin-right: 20px;
@@ -117,6 +129,15 @@
             }
 
             .appearance-section {
+                .theme-group {
+                    .input-group-addon {
+                        padding: 4px 5px;
+                        width: 40px;
+                        img {
+                            border: 1px solid rgba(black, 0.15);
+                        }
+                    }
+                }
                 .premade-themes {
                     margin-bottom: 10px;
                     .theme-label {

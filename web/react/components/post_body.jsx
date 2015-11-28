@@ -1,28 +1,39 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-const FileAttachmentList = require('./file_attachment_list.jsx');
-const UserStore = require('../stores/user_store.jsx');
-const Utils = require('../utils/utils.jsx');
-const Constants = require('../utils/constants.jsx');
-const TextFormatting = require('../utils/text_formatting.jsx');
-const twemoji = require('twemoji');
+import FileAttachmentList from './file_attachment_list.jsx';
+import UserStore from '../stores/user_store.jsx';
+import * as Utils from '../utils/utils.jsx';
+import Constants from '../utils/constants.jsx';
+import * as TextFormatting from '../utils/text_formatting.jsx';
+import twemoji from 'twemoji';
+import PostBodyAdditionalContent from './post_body_additional_content.jsx';
+
+import providers from './providers.json';
 
 export default class PostBody extends React.Component {
     constructor(props) {
         super(props);
 
         this.receivedYoutubeData = false;
-        this.isGifLoading = false;
+        this.isImgLoading = false;
 
+        this.handleUserChange = this.handleUserChange.bind(this);
         this.parseEmojis = this.parseEmojis.bind(this);
         this.createEmbed = this.createEmbed.bind(this);
-        this.createGifEmbed = this.createGifEmbed.bind(this);
-        this.loadGif = this.loadGif.bind(this);
+        this.createImageEmbed = this.createImageEmbed.bind(this);
+        this.loadImg = this.loadImg.bind(this);
         this.createYoutubeEmbed = this.createYoutubeEmbed.bind(this);
 
         const linkData = Utils.extractLinks(this.props.post.message);
-        this.state = {links: linkData.links, message: linkData.text};
+        const profiles = UserStore.getProfiles();
+
+        this.state = {
+            links: linkData.links,
+            message: linkData.text,
+            post: this.props.post,
+            hasUserProfiles: profiles && Object.keys(profiles).length > 1
+        };
     }
 
     getAllChildNodes(nodeIn) {
@@ -44,61 +55,121 @@ export default class PostBody extends React.Component {
         twemoji.parse(ReactDOM.findDOMNode(this), {size: Constants.EMOJI_SIZE});
     }
 
+    componentWillMount() {
+        if (this.props.post.filenames.length === 0 && this.state.links && this.state.links.length > 0) {
+            this.embed = this.createEmbed(this.state.links[0]);
+        }
+    }
+
     componentDidMount() {
         this.parseEmojis();
+
+        UserStore.addChangeListener(this.handleUserChange);
     }
 
     componentDidUpdate() {
         this.parseEmojis();
-        this.props.resize();
+    }
+
+    componentWillUnmount() {
+        UserStore.removeChangeListener(this.handleUserChange);
+    }
+
+    handleUserChange() {
+        if (!this.state.hasProfiles) {
+            const profiles = UserStore.getProfiles();
+
+            this.setState({hasProfiles: profiles && Object.keys(profiles).length > 1});
+        }
     }
 
     componentWillReceiveProps(nextProps) {
         const linkData = Utils.extractLinks(nextProps.post.message);
+        if (this.props.post.filenames.length === 0 && this.state.links && this.state.links.length > 0) {
+            this.embed = this.createEmbed(linkData.links[0]);
+        }
         this.setState({links: linkData.links, message: linkData.text});
     }
 
     createEmbed(link) {
-        let embed = this.createYoutubeEmbed(link);
+        const post = this.state.post;
+
+        if (!link) {
+            if (post.type === 'oEmbed') {
+                post.props.oEmbedLink = '';
+                post.type = '';
+            }
+            return null;
+        }
+
+        const trimmedLink = link.trim();
+
+        if (this.checkForOembedContent(trimmedLink)) {
+            post.props.oEmbedLink = trimmedLink;
+            post.type = 'oEmbed';
+            this.setState({post});
+            return '';
+        }
+
+        const embed = this.createYoutubeEmbed(link);
 
         if (embed != null) {
             return embed;
         }
 
-        embed = this.createGifEmbed(link);
+        for (let i = 0; i < Constants.IMAGE_TYPES.length; i++) {
+            const imageType = Constants.IMAGE_TYPES[i];
+            const suffix = link.substring(link.length - (imageType.length + 1));
+            if (suffix === '.' + imageType || suffix === '=' + imageType) {
+                return this.createImageEmbed(link, this.state.imgLoaded);
+            }
+        }
 
-        return embed;
+        return null;
     }
 
-    loadGif(src) {
-        if (this.isGifLoading) {
+    checkForOembedContent(link) {
+        for (let i = 0; i < providers.length; i++) {
+            for (let j = 0; j < providers[i].patterns.length; j++) {
+                if (link.match(providers[i].patterns[j])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    loadImg(src) {
+        if (this.isImgLoading) {
             return;
         }
 
-        this.isGifLoading = true;
+        this.isImgLoading = true;
 
-        const gif = new Image();
-        gif.src = src;
-        gif.onload = (
+        const img = new Image();
+        img.onload = (
             () => {
-                this.setState({gifLoaded: true});
+                this.embed = this.createImageEmbed(src, true);
+                this.setState({imgLoaded: true});
             }
         );
+        img.src = src;
     }
 
-    createGifEmbed(link) {
-        if (link.substring(link.length - 4) !== '.gif') {
-            return null;
-        }
-
-        if (!this.state.gifLoaded) {
-            this.loadGif(link);
-            return null;
+    createImageEmbed(link, isLoaded) {
+        if (!isLoaded) {
+            this.loadImg(link);
+            return (
+                <img
+                    className='img-div placeholder'
+                    height='500px'
+                />
+            );
         }
 
         return (
             <img
-                className='gif-div'
+                className='img-div'
                 src={link}
             />
         );
@@ -107,7 +178,7 @@ export default class PostBody extends React.Component {
     handleYoutubeTime(link) {
         const timeRegex = /[\\?&]t=([0-9hms]+)/;
 
-        const time = link.trim().match(timeRegex);
+        const time = link.match(timeRegex);
         if (!time || !time[1]) {
             return '';
         }
@@ -186,7 +257,7 @@ export default class PostBody extends React.Component {
         }
 
         return (
-            <div className='post-comment'>
+            <div>
                 <h4>
                     <span className='video-type'>{header}</span>
                     <span className='video-title'><a href={link}>{this.state.youtubeTitle}</a></span>
@@ -258,7 +329,7 @@ export default class PostBody extends React.Component {
             }
 
             comment = (
-                <p className='post-link'>
+                <div className='post__link'>
                     <span>
                         {'Commented on '}{name}{apostrophe}{' message: '}
                         <a
@@ -268,15 +339,13 @@ export default class PostBody extends React.Component {
                             {message}
                         </a>
                     </span>
-                </p>
+                </div>
             );
-
-            postClass += ' post-comment';
         }
 
         let loading;
         if (post.state === Constants.POST_FAILED) {
-            postClass += ' post-fail';
+            postClass += ' post--fail';
             loading = (
                 <a
                     className='theme post-retry pull-right'
@@ -296,11 +365,6 @@ export default class PostBody extends React.Component {
             );
         }
 
-        let embed;
-        if (filenames.length === 0 && this.state.links && this.state.links.length > 0) {
-            embed = this.createEmbed(this.state.links[0]);
-        }
-
         let fileAttachmentHolder = '';
         if (filenames && filenames.length > 0) {
             fileAttachmentHolder = (
@@ -313,22 +377,27 @@ export default class PostBody extends React.Component {
         }
 
         return (
-            <div className='post-body'>
+            <div>
                 {comment}
-                <div
-                    key={`${post.id}_message`}
-                    id={`${post.id}_message`}
-                    className={postClass}
-                >
-                    {loading}
-                    <span
-                        ref='message_span'
-                        onClick={TextFormatting.handleClick}
-                        dangerouslySetInnerHTML={{__html: TextFormatting.formatText(this.state.message)}}
+                <div className='post__body'>
+                    <div
+                        key={`${post.id}_message`}
+                        id={`${post.id}_message`}
+                        className={postClass}
+                    >
+                        {loading}
+                        <span
+                            ref='message_span'
+                            onClick={TextFormatting.handleClick}
+                            dangerouslySetInnerHTML={{__html: TextFormatting.formatText(this.state.message)}}
+                        />
+                    </div>
+                    <PostBodyAdditionalContent
+                        post={this.state.post}
                     />
+                    {fileAttachmentHolder}
+                    {this.embed}
                 </div>
-                {fileAttachmentHolder}
-                {embed}
             </div>
         );
     }
@@ -338,6 +407,5 @@ PostBody.propTypes = {
     post: React.PropTypes.object.isRequired,
     parentPost: React.PropTypes.object,
     retryPost: React.PropTypes.func.isRequired,
-    handleCommentClick: React.PropTypes.func.isRequired,
-    resize: React.PropTypes.func.isRequired
+    handleCommentClick: React.PropTypes.func.isRequired
 };

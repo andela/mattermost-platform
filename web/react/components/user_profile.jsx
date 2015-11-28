@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var Utils = require('../utils/utils.jsx');
-var UserStore = require('../stores/user_store.jsx');
+import * as Utils from '../utils/utils.jsx';
+import UserStore from '../stores/user_store.jsx';
 var Popover = ReactBootstrap.Popover;
 var OverlayTrigger = ReactBootstrap.OverlayTrigger;
 
@@ -29,7 +29,7 @@ export default class UserProfile extends React.Component {
             return {profile: {id: '0', username: '...'}};
         }
 
-        return {profile: profile};
+        return {profile};
     }
     componentDidMount() {
         UserStore.addChangeListener(this.onChange);
@@ -41,9 +41,9 @@ export default class UserProfile extends React.Component {
         UserStore.removeChangeListener(this.onChange);
     }
     onChange(userId) {
-        if (userId === this.props.userId) {
+        if (!userId || userId === this.props.userId) {
             var newState = this.getStateFromStores(this.props.userId);
-            if (!Utils.areStatesEqual(newState, this.state)) {
+            if (!Utils.areObjectsEqual(newState, this.state)) {
                 this.setState(newState);
             }
         }

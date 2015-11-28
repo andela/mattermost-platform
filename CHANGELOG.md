@@ -1,15 +1,215 @@
 # Mattermost Changelog
 
-## UNDER DEVELOPMENT Release v1.2.0
+## UNDER DEVELOPMENT Release v1.3.0
 
 The "UNDER DEVELOPMENT" section of the Mattermost changelog appears in the product's `master` branch to note key changes committed to master and are on their way to the next stable release. When a stable release is pushed the "UNDER DEVELOPMENT" heading is removed from the final changelog of the release. 
 
-- **Release candidate anticipated:** 2015-11-10
-- **Final release anticipated:** 2015-11-16
+- **Release candidate anticipated:** 2015-12-10
+- **Final release anticipated:** 2015-12-16
 
-### Changes
+### Improvements 
 
-- IE 10 no longer supported since global share of IE 10 fell below 5%
+Performance
+- Updated getProfiles service to return less data
+
+Messaging & Comments
+- Added in-line previews for links from select websites and for URLs pointing to an image
+- Added a "Help" link for messaging
+
+Onboarding
+- Added various small improvements to the tutorial
+
+User Interface
+- Visually combined sequential messages from the same user 
+- Added ability to rename "Town Square"
+
+#### Bug Fixes  
+
+- Fixed bug where the member list only showed "20" members for channels with more than 20 members
+- Fixed bug where the channel sidebar didn't order correctly on Postgres databases
+- Fixed bug where search results did not highlight when searching with quotation marks, wildcard, or in: and from: modifiers
+- Fixed bug with the cancel button not properly resetting the text in some account settings fields
+- Fixed a bug where editing a post to be empty caused a 404 error
+- Fixed issue where refreshing the page with the right hand sidebar open caused "..." to show up in place of usernames
+
+#### Contributors 
+
+Many thanks to our external contributors. In no particular order:
+
+- [florianorben](https://github.com/florianorben)
+- [42wim](https://github.com/42wim)
+- [cifvts](https://github.com/cifvts)
+- [rompic](https://github.com/rompic)
+- [jdhoek](https://github.com/jdhoek)
+- [Tsynapse](https://github.com/Tsynapse)
+- [alexgaribay](https://github.com/alexgaribay)
+- [vladikoff](https://github.com/vladikoff)
+- [jonathanwiesel](https://github.com/jonathanwiesel)
+
+## Release v1.2.1
+
+- **Released:** 2015-11-16
+
+### Security Notice
+
+Mattermost v1.2.1 is a bug fix release addressing a security issue in v1.2.0 affecting a newly introduced outgoing webhooks feature. Specifically, in v1.2.0 there was a check missing from outgoing webhooks, so a team member creating outgoing webhooks could in theory find a way to listen to messages in private channels containing popular words like "a", "the", "at", etc. For added security, Mattermost v1.2.1 now installs with incoming and outgoing webhooks disabled by default. 
+
+To limit the impact of this security issue, Mattermost v1.2.0 has been removed from the source repo. It is recommended that anyone who's installed v1.2.0 upgrade to v1.2.1 via [the procedure described in the Mattermost Upgrade Guide](https://github.com/mattermost/platform/blob/master/doc/install/Upgrade-Guide.md). 
+
+### Release Highlights
+
+#### Outgoing webhooks
+
+- Mattermost users can now interact with external applications using [outgoing webhooks](https://github.com/mattermost/platform/blob/master/doc/integrations/webhooks/Outgoing-Webhooks.md)
+- An [application template](https://github.com/mattermost/mattermost-integration-giphy) demonstrating user queries sent to the Giphy search engine via Mattermost webhooks now available
+- A community application, [Matterbridge](https://github.com/42wim/matterbridge?files=1), shows how to use webhooks to connect Mattermost with IRC 
+
+#### Search Scope Modifiers 
+
+- Adding search term `in:[channel_url_name]` now limits searches within a specific channel
+- Adding search term `from:[username]` now limits searches to messages from a specific user
+
+#### Syntax Highlighting 
+
+- Syntax highlight for code blocks now available for `Diff, Apache, Makefile, HTTP, JSON, Markdown, JavaScript, CSS, nginx, ObjectiveC, Python, XML, Perl, Bash, PHP, Coffee, C, SQL, Go, Ruby, Java, and ini`
+
+#### Usability Improvements 
+
+- Added tutorial to teach new users how to use Mattermost 
+- Various performance improvements to support teams with hundreds of users 
+- Direct Messages "More" menu now lets you search for users by username and real name
+
+### Improvements 
+
+Onboarding 
+
+- New tutorial explaining how to use Mattermost for new users
+
+Messaging and Notifications 
+
+- Users can now search for teammates to add to **Direct Message** list via **More** menu
+- Users can now personalize Direct Messages list by removing users listed
+- Link previews - Adding URL with .gif file adds image below message
+- Added new browser tab alerts to indicate unread messages and mentions 
+
+Search 
+
+- Adding search term `in:[channel_url_name]` now limits searches within a specific channel
+- Adding search term `from:[username]` now limits searches to messages from a specific user
+- Tip explaining search options when clicking into search box
+
+Integrations 
+
+- [Outgoing webhooks](https://github.com/mattermost/platform/blob/master/doc/integrations/webhooks/Outgoing-Webhooks.md) now available
+- Made available [application template showing outgoing webhooks working with Mattermost and external application](https://github.com/mattermost/mattermost-integration-giphy)
+
+User Interface
+
+- Member list in Channel display now scrollable, and includes Message button to message channel members directly
+- Added ability to edit previous message by hitting UP arrow 
+- Syntax highlighting added for code blocks 
+   - Languages include `Diff, Apache, Makefile, HTTP, JSON, Markdown, Java, CSS, nginx, ObjectiveC, Python, XML, Perl, Bash, PHP, Coffee, C, SQL, Go, Ruby, Java, and ini`. 
+   - Use by adding the name of the language on the first link of the code block, for example: ```python
+   - Syntax color theme can be defined under **Account Settings** > **Appearance Settings** > **Custom Theme**
+- Updated Drag & Drop UI
+- Added 24 hour time display option 
+
+Team Settings
+
+- Added Team Settings option to include account creation URL on team login page
+- Added Team Settings option to include link to given team on root page
+- Ability to rotate invite code for invite URL 
+
+Extras
+
+- Added `/shrug KEYWORD` command to output: `¯\_(ツ)_/¯ KEYWORD`
+- Added `/me KEYWORD` command to output: _`KEYWORD`_ 
+- Added setting option to send a message on control-enter instead of enter
+
+System Console
+
+- New statistics page
+- Configurable option to create an account directly from team page
+
+#### Bug Fixes  
+
+- Various fixes to theme colors
+- Fixed issue with the centre channel scroll position jumping when right hand side was opened and closed
+- Added support for simultaneous login to different teams in different browser tabs
+- Incoming webhooks no longer disrupted when channel is deleted
+- You can now paste a Mattermost incoming webhook URL into the same field designed for a Slack URL and integrations will work 
+
+### Compatibility  
+
+- IE 11 new minimum version for IE, since IE 10 share fell below 5% on desktop 
+- Safari 9 new minimum version for Safari, since Safari 7 and 8 fell below 1% each on desktop 
+
+#### Config.json Changes from v1.1 to v1.2
+
+Multiple settings were added to [`config.json`](./config/config.json). These options can be modified in the System Console, or manually updated in the existing config.json file. This is a list of changes and their new default values in a fresh install: 
+- Under `TeamSettings` in `config.json`:
+  - Added: `"RestrictTeamNames": true` to control whether team names can contain reserved words like www, admin, support, test, etc.
+  - Added: `"EnableTeamListing": false` to control whether teams can be listed on the root page of the site
+- Under `ServiceSettings` in `config.json`
+  - Added: `"EnableOutgoingWebhooks": false` to control whether outgoing webhooks are enabled
+  - Changed: `"EnableIncomingWebhooks": true` to `"EnableIncomingWebhooks": false` to turn incoming webhooks off by default, to increase security of default install. Documentation updated to enable webhooks before use. 
+
+#### Database Changes from v1.1 to v1.2
+
+The following is for informational purposes only, no action needed. Mattermost automatically upgrades database tables from the previous version's schema using only additions. Sessions table is dropped and rebuilt, no team data is affected by this. 
+
+##### Channels Table
+1. Renamed `Description` to `Header`
+2. Added `Purpose` column with type `varchar(1024)`
+
+##### Preferences Table
+1. Added `Preferences` Table
+
+##### Teams Table 
+1. Added `InviteId` column with type `varchar(32)`
+2. Added `AllowOpenInvite` column with type `tinyint(1)`
+3. Added `AllowTeamListing` column with type `tinyint(1)`
+4. Added `idx_teams_invite_id` index
+
+#### Known Issues
+
+- When navigating to a page with new messages as well as message containing inline images added via markdown, the channel may move up and down while loading the inline images
+- Microsoft Edge does not yet support drag and drop 
+- After upgrading to v1.2 existing users will see the newly added tutorial tips upon login (this is a special case for v1.2 and will not happen in future upgrades)
+- Channel list becomes reordered when there are lowercase channel names in a Postgres database
+- Member list only shows "20" members for channels with more than 20 members
+- Searches containing punctuation are not highlighted in the results (including in: or from: search modifiers and searches with quotations)
+- Media files of type .avi .mkv .wmv .mov .flv .mp4a do not play  properly
+- Editing a post so that it's text is blank (which should delete it) throws a 404
+- No scroll bar in centre channel
+- Theme color import from Slack fails to import the “Active Channel” selection color
+- Pasting images into text box fails to upload on Firefox and Safari
+- Users cannot claim accounts imported from Slack via password reset
+- Slack import @mentions break
+
+#### Contributors 
+
+Many thanks to our external contributors. In no particular order:
+
+- [florianorben](https://github.com/florianorben)
+- [trashcan](https://github.com/trashcan)
+- [girishso](https://github.com/girishso)
+- [apaatsio](https://github.com/apaatsio)
+- [jlebleu](https://github.com/jlebleu)
+- [stasvovk](https://github.com/stasvovk)
+- [mcmillhj](https://github.com/mcmillhj)
+- [sharms](https://github.com/sharms)
+- [jvasallo](https://github.com/jvasallo)
+- [layzerar](https://github.com/layzerar)
+- [optimistiks](https://github.com/optimistiks)
+- [Tsynapse](https://github.com/Tsynapse)
+- [vinnymac](https://github.com/vinnymac)
+- [yuvipanda](https://github.com/yuvipanda)
+- [toyorg](https://github.com/toyorg)
+
+## Release v1.2.0 (Redacted Release)
+
+- **Final release:** 2015-11-16 (**Note:** This release was removed from public availability and replaced by v1.2.1 owing to a security issue with the new outgoing webhooks feature. See v1.2.1 Release Notes for details).
 
 ## Release v1.1.1 (Bug Fix Release) 
 

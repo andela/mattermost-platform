@@ -10,6 +10,27 @@ Supported Operating Systems and Browsers for the Mattermost Web Client include:
 - iPhone 4s and higher (Safari on iOS 8.3+, Chrome 43+)  
 - Android 5 and higher (Chrome 43+)  
 
+### Email Client
+
+Supported Email Clients for rendering Mattermost email notifications include:
+
+Web based clients: 
+- Gmail
+- Office 365
+- Outlook
+- Yahoo
+- AOL
+
+Desktop Clients:
+- Apple Mail version 7+
+- Outlook 2016+
+- Thunderbird 38.2+
+
+Mobile Clients: 
+- Gmail Mobile App (Android, iOS)
+- iOS Mail App (iOS 7+)
+- Blackberry Mail App  (OS version 4+)
+
 ### Server
 
 Supported Operating Systems for the Mattermost Server include: 
@@ -26,7 +47,7 @@ The Mattermost roadmap does not currently include production support for Fedora,
 
 Mattermost offers both real-time communication and file sharing. CPU and Memory requirements are typically driven by the number of concurrent users using real-time messaging. Storage requirements are typically driven by number and size of files shared. 
 
-The below guidelines offer estimates based on real world usage of Mattermost across industries. 
+The below guidelines offer estimates based on real world usage of Mattermost in multi-team configurations ranging from 10-100 users per team. 
 
 ### CPU
 

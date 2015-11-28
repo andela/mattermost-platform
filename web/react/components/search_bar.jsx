@@ -1,15 +1,15 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var client = require('../utils/client.jsx');
-var AsyncClient = require('../utils/async_client.jsx');
-var SearchStore = require('../stores/search_store.jsx');
-var AppDispatcher = require('../dispatcher/app_dispatcher.jsx');
-var utils = require('../utils/utils.jsx');
-var Constants = require('../utils/constants.jsx');
+import * as client from '../utils/client.jsx';
+import * as AsyncClient from '../utils/async_client.jsx';
+import SearchStore from '../stores/search_store.jsx';
+import AppDispatcher from '../dispatcher/app_dispatcher.jsx';
+import * as utils from '../utils/utils.jsx';
+import Constants from '../utils/constants.jsx';
 var ActionTypes = Constants.ActionTypes;
 var Popover = ReactBootstrap.Popover;
-var SearchAutocomplete = require('./search_autocomplete.jsx');
+import SearchAutocomplete from './search_autocomplete.jsx';
 
 export default class SearchBar extends React.Component {
     constructor() {
@@ -46,7 +46,7 @@ export default class SearchBar extends React.Component {
     onListenerChange(doSearch, isMentionSearch) {
         if (this.mounted) {
             var newState = this.getSearchTermStateFromStores();
-            if (!utils.areStatesEqual(newState, this.state)) {
+            if (!utils.areObjectsEqual(newState, this.state)) {
                 this.setState(newState);
             }
             if (doSearch) {
@@ -90,14 +90,10 @@ export default class SearchBar extends React.Component {
 
         this.refs.autocomplete.handleInputChange(e.target, term);
     }
-    handleMouseInput(e) {
-        e.preventDefault();
-    }
     handleUserBlur() {
         this.setState({focused: false});
     }
-    handleUserFocus(e) {
-        e.target.select();
+    handleUserFocus() {
         $('.search-bar__container').addClass('focused');
 
         this.setState({focused: true});
@@ -106,14 +102,8 @@ export default class SearchBar extends React.Component {
         if (terms.length) {
             this.setState({isSearching: true});
 
-            // append * if not present
-            let searchTerms = terms;
-            if (searchTerms.search(/\*\s*$/) === -1) {
-                searchTerms = searchTerms + '*';
-            }
-
             client.search(
-                searchTerms,
+                terms,
                 (data) => {
                     this.setState({isSearching: false});
                     if (utils.isMobile()) {
@@ -185,6 +175,7 @@ export default class SearchBar extends React.Component {
                     className='search__form relative-div'
                     onSubmit={this.handleSubmit}
                     style={{overflow: 'visible'}}
+                    autoComplete='off'
                 >
                     <span className='glyphicon glyphicon-search sidebar__search-icon' />
                     <input
@@ -197,7 +188,6 @@ export default class SearchBar extends React.Component {
                         onBlur={this.handleUserBlur}
                         onChange={this.handleUserInput}
                         onKeyDown={this.handleKeyDown}
-                        onMouseUp={this.handleMouseInput}
                     />
                     {isSearching}
                     <SearchAutocomplete

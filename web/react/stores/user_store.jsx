@@ -1,19 +1,18 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var AppDispatcher = require('../dispatcher/app_dispatcher.jsx');
-var EventEmitter = require('events').EventEmitter;
+import AppDispatcher from '../dispatcher/app_dispatcher.jsx';
+import EventEmitter from 'events';
 
-var Constants = require('../utils/constants.jsx');
-var ActionTypes = Constants.ActionTypes;
-var BrowserStore = require('./browser_store.jsx');
+import Constants from '../utils/constants.jsx';
+const ActionTypes = Constants.ActionTypes;
+import BrowserStore from './browser_store.jsx';
 
-var CHANGE_EVENT = 'change';
-var CHANGE_EVENT_SESSIONS = 'change_sessions';
-var CHANGE_EVENT_AUDITS = 'change_audits';
-var CHANGE_EVENT_TEAMS = 'change_teams';
-var CHANGE_EVENT_STATUSES = 'change_statuses';
-var TOGGLE_IMPORT_MODAL_EVENT = 'toggle_import_modal';
+const CHANGE_EVENT = 'change';
+const CHANGE_EVENT_SESSIONS = 'change_sessions';
+const CHANGE_EVENT_AUDITS = 'change_audits';
+const CHANGE_EVENT_TEAMS = 'change_teams';
+const CHANGE_EVENT_STATUSES = 'change_statuses';
 
 class UserStoreClass extends EventEmitter {
     constructor() {
@@ -34,9 +33,6 @@ class UserStoreClass extends EventEmitter {
         this.emitStatusesChange = this.emitStatusesChange.bind(this);
         this.addStatusesChangeListener = this.addStatusesChangeListener.bind(this);
         this.removeStatusesChangeListener = this.removeStatusesChangeListener.bind(this);
-        this.emitToggleImportModal = this.emitToggleImportModal.bind(this);
-        this.addImportModalListener = this.addImportModalListener.bind(this);
-        this.removeImportModalListener = this.removeImportModalListener.bind(this);
         this.getCurrentId = this.getCurrentId.bind(this);
         this.getCurrentUser = this.getCurrentUser.bind(this);
         this.setCurrentUser = this.setCurrentUser.bind(this);
@@ -62,6 +58,8 @@ class UserStoreClass extends EventEmitter {
         this.setStatus = this.setStatus.bind(this);
         this.getStatuses = this.getStatuses.bind(this);
         this.getStatus = this.getStatus.bind(this);
+
+        this.profileCache = null;
     }
 
     emitChange(userId) {
@@ -124,18 +122,6 @@ class UserStoreClass extends EventEmitter {
         this.removeListener(CHANGE_EVENT_STATUSES, callback);
     }
 
-    emitToggleImportModal(value) {
-        this.emit(TOGGLE_IMPORT_MODAL_EVENT, value);
-    }
-
-    addImportModalListener(callback) {
-        this.on(TOGGLE_IMPORT_MODAL_EVENT, callback);
-    }
-
-    removeImportModalListener(callback) {
-        this.removeListener(TOGGLE_IMPORT_MODAL_EVENT, callback);
-    }
-
     getCurrentUser() {
         if (this.getProfiles()[global.window.mm_user.id] == null) {
             this.saveProfile(global.window.mm_user);
@@ -178,6 +164,10 @@ class UserStoreClass extends EventEmitter {
     }
 
     getProfile(userId) {
+        if (userId === this.getCurrentId()) {
+            return this.getCurrentUser();
+        }
+
         return this.getProfiles()[userId];
     }
 
@@ -200,16 +190,21 @@ class UserStoreClass extends EventEmitter {
     }
 
     getProfiles() {
+        if (this.profileCache !== null) {
+            return this.profileCache;
+        }
+
         return BrowserStore.getItem('profiles', {});
     }
 
-    getActiveOnlyProfiles() {
-        var active = {};
-        var current = this.getProfiles();
+    getActiveOnlyProfiles(skipCurrent) {
+        const active = {};
+        const profiles = this.getProfiles();
+        const currentId = this.getCurrentId();
 
-        for (var key in current) {
-            if (current[key].delete_at === 0) {
-                active[key] = current[key];
+        for (var key in profiles) {
+            if (!(profiles[key].id === currentId && skipCurrent) && profiles[key].delete_at === 0) {
+                active[key] = profiles[key];
             }
         }
 
@@ -219,9 +214,10 @@ class UserStoreClass extends EventEmitter {
     getActiveOnlyProfileList() {
         const profileMap = this.getActiveOnlyProfiles();
         const profiles = [];
+        const currentId = this.getCurrentId();
 
         for (const id in profileMap) {
-            if (profileMap.hasOwnProperty(id)) {
+            if (profileMap.hasOwnProperty(id) && id !== currentId) {
                 profiles.push(profileMap[id]);
             }
         }
@@ -232,7 +228,18 @@ class UserStoreClass extends EventEmitter {
     saveProfile(profile) {
         var ps = this.getProfiles();
         ps[profile.id] = profile;
+        this.profileCache = ps;
         BrowserStore.setItem('profiles', ps);
+    }
+
+    saveProfiles(profiles) {
+        const currentId = this.getCurrentId();
+        if (currentId in profiles) {
+            delete profiles[currentId];
+        }
+
+        this.profileCache = profiles;
+        BrowserStore.setItem('profiles', profiles);
     }
 
     setSessions(sessions) {
@@ -320,15 +327,8 @@ UserStore.dispatchToken = AppDispatcher.register((payload) => {
 
     switch (action.type) {
     case ActionTypes.RECIEVED_PROFILES:
-        for (var id in action.profiles) {
-            // profiles can have incomplete data, so don't overwrite current user
-            if (id === UserStore.getCurrentId()) {
-                continue;
-            }
-            var profile = action.profiles[id];
-            UserStore.saveProfile(profile);
-            UserStore.emitChange(profile.id);
-        }
+        UserStore.saveProfiles(action.profiles);
+        UserStore.emitChange();
         break;
     case ActionTypes.RECIEVED_ME:
         UserStore.setCurrentUser(action.me);
@@ -350,13 +350,8 @@ UserStore.dispatchToken = AppDispatcher.register((payload) => {
         UserStore.pSetStatuses(action.statuses);
         UserStore.emitStatusesChange();
         break;
-    case ActionTypes.TOGGLE_IMPORT_THEME_MODAL:
-        UserStore.emitToggleImportModal(action.value);
-        break;
-
     default:
     }
 });
 
-global.window.UserStore = UserStore;
-export default UserStore;
+export {UserStore as default};

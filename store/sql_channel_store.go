@@ -4,7 +4,6 @@
 package store
 
 import (
-	l4g "code.google.com/p/log4go"
 	"github.com/go-gorp/gorp"
 	"github.com/mattermost/platform/model"
 	"github.com/mattermost/platform/utils"
@@ -40,55 +39,6 @@ func NewSqlChannelStore(sqlStore *SqlStore) ChannelStore {
 }
 
 func (s SqlChannelStore) UpgradeSchemaIfNeeded() {
-
-	// REMOVE AFTER 1.2 SHIP see PLT-828
-	if s.CreateColumnIfNotExists("ChannelMembers", "NotifyProps", "varchar(2000)", "varchar(2000)", "{}") {
-		// populate NotifyProps from existing NotifyLevel field
-
-		// set default values
-		_, err := s.GetMaster().Exec(
-			`UPDATE
-				ChannelMembers
-			SET
-				NotifyProps = CONCAT('{"desktop":"', CONCAT(NotifyLevel, '","mark_unread":"` + model.CHANNEL_MARK_UNREAD_ALL + `"}'))`)
-		if err != nil {
-			l4g.Error("Unable to set default values for ChannelMembers.NotifyProps")
-			l4g.Error(err.Error())
-		}
-
-		// assume channels with all notifications enabled are just using the default settings
-		_, err = s.GetMaster().Exec(
-			`UPDATE
-				ChannelMembers
-			SET
-				NotifyProps = '{"desktop":"` + model.CHANNEL_NOTIFY_DEFAULT + `","mark_unread":"` + model.CHANNEL_MARK_UNREAD_ALL + `"}'
-			WHERE
-				NotifyLevel = '` + model.CHANNEL_NOTIFY_ALL + `'`)
-		if err != nil {
-			l4g.Error("Unable to set values for ChannelMembers.NotifyProps when members previously had notifyLevel=all")
-			l4g.Error(err.Error())
-		}
-
-		// set quiet mode channels to have no notifications and only mark the channel unread on mentions
-		_, err = s.GetMaster().Exec(
-			`UPDATE
-				ChannelMembers
-			SET
-				NotifyProps = '{"desktop":"` + model.CHANNEL_NOTIFY_NONE + `","mark_unread":"` + model.CHANNEL_MARK_UNREAD_MENTION + `"}'
-			WHERE
-				NotifyLevel = 'quiet'`)
-		if err != nil {
-			l4g.Error("Unable to set values for ChannelMembers.NotifyProps when members previously had notifyLevel=quiet")
-			l4g.Error(err.Error())
-		}
-
-		s.RemoveColumnIfExists("ChannelMembers", "NotifyLevel")
-	}
-
-	// BEGIN REMOVE AFTER 1.2.0
-	s.RenameColumnIfExists("Channels", "Description", "Header", "varchar(1024)")
-	s.CreateColumnIfNotExists("Channels", "Purpose", "varchar(1024)", "varchar(1024)", "")
-	// END REMOVE AFTER 1.2.0
 }
 
 func (s SqlChannelStore) CreateIndexesIfNotExists() {
@@ -247,7 +197,7 @@ func (s SqlChannelStore) Update(channel *model.Channel) StoreChannel {
 					result.Err = model.NewAppError("SqlChannelStore.Update", "A channel with that handle already exists", "id="+channel.Id+", "+err.Error())
 				}
 			} else {
-				result.Err = model.NewAppError("SqlChannelStore.Update", "We encounted an error updating the channel", "id="+channel.Id+", "+err.Error())
+				result.Err = model.NewAppError("SqlChannelStore.Update", "We encountered an error updating the channel", "id="+channel.Id+", "+err.Error())
 			}
 		} else if count != 1 {
 			result.Err = model.NewAppError("SqlChannelStore.Update", "We couldn't update the channel", "id="+channel.Id)
@@ -297,7 +247,7 @@ func (s SqlChannelStore) Get(id string) StoreChannel {
 		result := StoreResult{}
 
 		if obj, err := s.GetReplica().Get(model.Channel{}, id); err != nil {
-			result.Err = model.NewAppError("SqlChannelStore.Get", "We encounted an error finding the channel", "id="+id+", "+err.Error())
+			result.Err = model.NewAppError("SqlChannelStore.Get", "We encountered an error finding the channel", "id="+id+", "+err.Error())
 		} else if obj == nil {
 			result.Err = model.NewAppError("SqlChannelStore.Get", "We couldn't find the existing channel", "id="+id)
 		} else {
@@ -320,6 +270,23 @@ func (s SqlChannelStore) Delete(channelId string, time int64) StoreChannel {
 		_, err := s.GetMaster().Exec("Update Channels SET DeleteAt = :Time, UpdateAt = :Time WHERE Id = :ChannelId", map[string]interface{}{"Time": time, "ChannelId": channelId})
 		if err != nil {
 			result.Err = model.NewAppError("SqlChannelStore.Delete", "We couldn't delete the channel", "id="+channelId+", err="+err.Error())
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlChannelStore) PermanentDeleteByTeam(teamId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		if _, err := s.GetMaster().Exec("DELETE FROM Channels WHERE TeamId = :TeamId", map[string]interface{}{"TeamId": teamId}); err != nil {
+			result.Err = model.NewAppError("SqlChannelStore.PermanentDeleteByTeam", "We couldn't delete the channels", "teamId="+teamId+", "+err.Error())
 		}
 
 		storeChannel <- result
@@ -537,7 +504,7 @@ func (s SqlChannelStore) UpdateMember(member *model.ChannelMember) StoreChannel 
 		}
 
 		if _, err := s.GetMaster().Update(member); err != nil {
-			result.Err = model.NewAppError("SqlChannelStore.UpdateMember", "We encounted an error updating the channel member",
+			result.Err = model.NewAppError("SqlChannelStore.UpdateMember", "We encountered an error updating the channel member",
 				"channel_id="+member.ChannelId+", "+"user_id="+member.UserId+", "+err.Error())
 		} else {
 			result.Data = member
@@ -592,6 +559,26 @@ func (s SqlChannelStore) GetMember(channelId string, userId string) StoreChannel
 	return storeChannel
 }
 
+func (s SqlChannelStore) GetMemberCount(channelId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		count, err := s.GetReplica().SelectInt("SELECT count(*) FROM ChannelMembers WHERE ChannelId = :ChannelId", map[string]interface{}{"ChannelId": channelId})
+		if err != nil {
+			result.Err = model.NewAppError("SqlChannelStore.GetMemberCount", "We couldn't get the channel member count", "channel_id="+channelId+", "+err.Error())
+		} else {
+			result.Data = count
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
 func (s SqlChannelStore) GetExtraMembers(channelId string, limit int) StoreChannel {
 	storeChannel := make(StoreChannel)
 
@@ -637,6 +624,23 @@ func (s SqlChannelStore) RemoveMember(channelId string, userId string) StoreChan
 					result.Err = mu.Err
 				}
 			}
+		}
+
+		storeChannel <- result
+		close(storeChannel)
+	}()
+
+	return storeChannel
+}
+
+func (s SqlChannelStore) PermanentDeleteMembersByUser(userId string) StoreChannel {
+	storeChannel := make(StoreChannel)
+
+	go func() {
+		result := StoreResult{}
+
+		if _, err := s.GetMaster().Exec("DELETE FROM ChannelMembers WHERE UserId = :UserId", map[string]interface{}{"UserId": userId}); err != nil {
+			result.Err = model.NewAppError("SqlChannelStore.RemoveMember", "We couldn't remove the channel member", "user_id="+userId+", "+err.Error())
 		}
 
 		storeChannel <- result

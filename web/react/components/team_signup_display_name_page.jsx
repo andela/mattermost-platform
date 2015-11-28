@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var utils = require('../utils/utils.jsx');
-var client = require('../utils/client.jsx');
+import * as utils from '../utils/utils.jsx';
+import * as client from '../utils/client.jsx';
 
 export default class TeamSignupDisplayNamePage extends React.Component {
     constructor(props) {
@@ -24,6 +24,9 @@ export default class TeamSignupDisplayNamePage extends React.Component {
         var displayName = ReactDOM.findDOMNode(this.refs.name).value.trim();
         if (!displayName) {
             this.setState({nameError: 'This field is required'});
+            return;
+        } else if (displayName.length < 4 || displayName.length > 15) {
+            this.setState({nameError: 'Name must be 4 or more characters up to a maximum of 15'});
             return;
         }
 

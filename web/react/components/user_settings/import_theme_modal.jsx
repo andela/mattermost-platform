@@ -1,13 +1,14 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-const UserStore = require('../../stores/user_store.jsx');
-const Utils = require('../../utils/utils.jsx');
-const Client = require('../../utils/client.jsx');
+import ModalStore from '../../stores/modal_store.jsx';
+import UserStore from '../../stores/user_store.jsx';
+import * as Utils from '../../utils/utils.jsx';
+import * as Client from '../../utils/client.jsx';
 const Modal = ReactBootstrap.Modal;
 
-const AppDispatcher = require('../../dispatcher/app_dispatcher.jsx');
-const Constants = require('../../utils/constants.jsx');
+import AppDispatcher from '../../dispatcher/app_dispatcher.jsx';
+import Constants from '../../utils/constants.jsx';
 const ActionTypes = Constants.ActionTypes;
 
 export default class ImportThemeModal extends React.Component {
@@ -24,10 +25,10 @@ export default class ImportThemeModal extends React.Component {
         };
     }
     componentDidMount() {
-        UserStore.addImportModalListener(this.updateShow);
+        ModalStore.addModalListener(ActionTypes.TOGGLE_IMPORT_THEME_MODAL, this.updateShow);
     }
     componentWillUnmount() {
-        UserStore.removeImportModalListener(this.updateShow);
+        ModalStore.removeModalListener(ActionTypes.TOGGLE_IMPORT_THEME_MODAL, this.updateShow);
     }
     updateShow(show) {
         this.setState({show});
@@ -49,7 +50,7 @@ export default class ImportThemeModal extends React.Component {
         theme.sidebarText = colors[5];
         theme.sidebarUnreadText = colors[5];
         theme.sidebarTextHoverBg = colors[4];
-        theme.sidebarTextActiveBg = colors[2];
+        theme.sidebarTextActiveBorder = colors[2];
         theme.sidebarTextActiveColor = colors[3];
         theme.sidebarHeaderBg = colors[1];
         theme.sidebarHeaderTextColor = colors[5];
@@ -58,9 +59,13 @@ export default class ImportThemeModal extends React.Component {
         theme.mentionColor = '#ffffff';
         theme.centerChannelBg = '#ffffff';
         theme.centerChannelColor = '#333333';
+        theme.newMessageSeparator = '#F80';
         theme.linkColor = '#2389d7';
         theme.buttonBg = '#26a970';
         theme.buttonColor = '#ffffff';
+        theme.mentionHighlightBg = '#fff2bb';
+        theme.mentionHighlightLink = '#2f81b7';
+        theme.codeTheme = 'github';
 
         let user = UserStore.getCurrentUser();
         user.theme_props = theme;
@@ -74,7 +79,6 @@ export default class ImportThemeModal extends React.Component {
 
                 this.setState({show: false});
                 Utils.applyTheme(theme);
-                $('#user_settings').modal('show');
             },
             (err) => {
                 var state = this.getStateFromStores();

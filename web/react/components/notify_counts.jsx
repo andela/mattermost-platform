@@ -1,8 +1,8 @@
 // Copyright (c) 2015 Mattermost, Inc. All Rights Reserved.
 // See License.txt for license information.
 
-var utils = require('../utils/utils.jsx');
-var ChannelStore = require('../stores/channel_store.jsx');
+import * as utils from '../utils/utils.jsx';
+import ChannelStore from '../stores/channel_store.jsx';
 
 function getCountsStateFromStores() {
     var count = 0;
@@ -39,7 +39,7 @@ export default class NotifyCounts extends React.Component {
     }
     onListenerChange() {
         var newState = getCountsStateFromStores();
-        if (!utils.areStatesEqual(newState, this.state)) {
+        if (!utils.areObjectsEqual(newState, this.state)) {
             this.setState(newState);
         }
     }
